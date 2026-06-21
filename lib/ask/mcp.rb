@@ -9,7 +9,11 @@ module Ask
     autoload :Tool, "ask/mcp/tool"
     autoload :Resource, "ask/mcp/resource"
     autoload :Prompt, "ask/mcp/prompt"
-    autoload :Transport, "ask/mcp/transport"
+    autoload :Validator, "ask/mcp/validator"
+
+    module Native
+      autoload :Messages, "ask/mcp/native/messages"
+    end
 
     module Transport
       autoload :Stdio, "ask/mcp/transport/stdio"
@@ -22,10 +26,15 @@ module Ask
       autoload :Token, "ask/mcp/auth/token"
     end
 
+    module Adapters
+      autoload :AskTool, "ask/mcp/adapters/ask_tool"
+    end
+
     class Error < StandardError; end
     class ConnectionError < Error; end
     class ProtocolError < Error; end
     class AuthError < Error; end
+    class ValidationError < Error; end
 
     class << self
       def connect(transport, options = {})
@@ -45,6 +54,11 @@ module Ask
       def from_http(url, options = {})
         transport = Transport::StreamableHTTP.new(url, options)
         Client.new(transport)
+      end
+
+      # Validate tool arguments against a JSON Schema input schema
+      def validate!(schema, arguments)
+        Validator.new(schema).validate!(arguments)
       end
     end
   end

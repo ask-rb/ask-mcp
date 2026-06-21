@@ -119,7 +119,6 @@ ask_tool = Ask::MCP::Adapters::AskTool.new(tool)
 - README: quick start for each transport, examples
 - Auth setup guide
 - Adapter usage with ask-agent
-- Migration guide from ruby_llm-mcp
 
 ## Release Notes
 
