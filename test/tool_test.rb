@@ -28,6 +28,15 @@ class ToolTest < Minitest::Test
     assert_equal "object", tool.input_schema["type"]
   end
 
+  def test_from_h_with_input_schema_string_key
+    tool = Ask::MCP::Tool.from_h(
+      "name" => "test",
+      "input_schema" => { type: "object" }
+    )
+    assert_equal "test", tool.name
+    assert_equal "object", tool.input_schema[:type]
+  end
+
   def test_to_h
     tool = Ask::MCP::Tool.new(
       name: "search",
@@ -42,7 +51,24 @@ class ToolTest < Minitest::Test
 
   def test_to_ask_tool
     tool = Ask::MCP::Tool.new(name: "test", description: "A test", input_schema: { type: "object" })
-    # The adapter method exists even if ask-tools isn't loaded
     assert_respond_to tool, :to_ask_tool
+  end
+
+  def test_default_description
+    tool = Ask::MCP::Tool.new(name: "no_desc")
+    assert_equal "", tool.description
+    assert_equal({}, tool.input_schema)
+  end
+
+  def test_minimal_input_schema
+    tool = Ask::MCP::Tool.new(name: "minimal", input_schema: {})
+    assert_equal({}, tool.input_schema)
+  end
+
+  def test_equality
+    t1 = Ask::MCP::Tool.new(name: "test", description: "desc", input_schema: { type: "object" })
+    t2 = Ask::MCP::Tool.new(name: "test", description: "desc", input_schema: { type: "object" })
+    assert_equal t1.name, t2.name
+    assert_equal t1.description, t2.description
   end
 end

@@ -1,3 +1,7 @@
+## [0.1.1] - 2026-06-25
+
+### Changed
+- Major test expansion: Transport tests (SSE/Stdio/StreamableHTTP), MessagesParser, OAuth, Client(17t with cache invalidation), Server(7t), Tool(8t), Messages(17t with serialization), integration tests(7t with mock server). Infrastructure: rubocop, overcommit, CI matrix, gemspec, SimpleCov.
 # Changelog
 
 ## [0.1.0] - 2026-06-10
