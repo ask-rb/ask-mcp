@@ -1,37 +1,29 @@
 # frozen_string_literal: true
 
 require "json"
+require "timeout"
 
 module Ask
   module MCP
     class Server
       # MCP server over stdio transport.
-      #
-      # Reads JSON-RPC 2.0 messages from stdin and writes responses to stdout.
-      # Designed to be spawned as a child process by MCP clients (Codex Desktop,
-      # Claude Code, etc.) with command/args config.
-      #
-      # Usage:
-      #   Server::Stdio.new(name: "my-server", tools: my_tools).start
-      #
       class Stdio
-        PROTOCOL_VERSION = "0.1.0"
-
         attr_reader :name, :tools, :capabilities, :resources, :prompts
 
-        def initialize(name:, tools: [], capabilities: {}, resources: {}, prompts: {}, debug: false)
+        def initialize(name:, tools: [], capabilities: {}, resources: {}, prompts: {},
+                       debug: false, tool_timeout: nil)
           @name = name
           @capabilities = capabilities
           @resources = resources
           @prompts = prompts
           @debug = debug
+          @tool_timeout = tool_timeout
 
           @adapter = Adapters::ToolServer.new(tools || [])
           @initialized = false
           @running = false
         end
 
-        # Start the server (blocking). Processes stdin until EOF.
         def start
           @running = true
           $stdout.sync = true
@@ -42,23 +34,22 @@ module Ask
           while @running && (line = $stdin.gets)
             line = line.strip
             next if line.empty?
-
             process_line(line)
           end
 
           debug_log "stdin closed — exiting"
         rescue Errno::EBADF, IOError
           # stdin closed externally
+        rescue SignalException
+          # SIGTERM or SIGHUP during blocked read
         ensure
           @running = false
         end
 
-        # Stop the server (non-blocking, closes stdin to unblock the read loop).
         def stop
           @running = false
         end
 
-        # Is the server still running?
         def running?
           @running
         end
@@ -90,17 +81,20 @@ module Ask
           when "tools/call"
             return send_error(id, -32000, "Server not initialized") unless @initialized
             handle_tool_call(id, params)
+          when "ping"
+            send_result(id, {}) if has_id
           else
             debug_log "Unknown method: #{method}"
             send_error(id, -32601, "Method not found: #{method}") if has_id
           end
         end
 
-        def handle_initialize(id, _params)
+        def handle_initialize(id, params)
           @initialized = true
-          debug_log "Handling initialize (id=#{id.inspect})"
+          client_version = params[:protocolVersion] || PROTOCOL_VERSION
+          debug_log "Handling initialize (id=#{id.inspect}, version=#{client_version})"
           send_result(id, {
-            protocolVersion: PROTOCOL_VERSION,
+            protocolVersion: client_version,
             capabilities: @capabilities,
             serverInfo: {
               name: @name,
@@ -111,7 +105,6 @@ module Ask
         end
 
         def handle_tools_list(id)
-          debug_log "Handling tools/list (id=#{id.inspect})"
           defs = @adapter.definitions
           debug_log "tools/list returning #{defs.length} tool definitions"
           send_result(id, { tools: defs })
@@ -123,8 +116,19 @@ module Ask
 
           debug_log "Handling tools/call: #{tool_name} (id=#{id.inspect})"
 
-          result = @adapter.call(tool_name, arguments)
+          result = if @tool_timeout
+                     Timeout.timeout(@tool_timeout) { @adapter.call(tool_name, arguments) }
+                   else
+                     @adapter.call(tool_name, arguments)
+                   end
+
           send_result(id, result)
+        rescue Timeout::Error
+          debug_log "Tool call timed out: #{tool_name}"
+          send_result(id, {
+            content: [{ type: "text", text: "Tool call timed out: #{tool_name}" }],
+            isError: true
+          })
         end
 
         def send_result(id, result)
