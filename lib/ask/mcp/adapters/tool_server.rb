@@ -3,19 +3,26 @@
 module Ask
   module MCP
     module Adapters
-      # Converts Ask::Tool instances into MCP tool definitions and dispatches
-      # calls. This is the server-direction adapter — it takes Ask::Tool objects
-      # (from tool packs like ask-tools-shell) and makes them available over MCP.
+      # Converts duck-typed tool objects into MCP tool definitions and dispatches
+      # calls. This is the server-direction adapter — it takes any objects that
+      # respond to +name+, +description+, +params_schema+, and +call(args)+ and
+      # exposes them over MCP.
       #
       # Usage:
-      #   adapter = AskToolServer.new(Ask::Tools::Shell.all)
-      #   adapter.definitions  # => [{ name: "bash", description: "...", inputSchema: {...} }]
-      #   adapter.call("bash", { command: "echo hi" })  # => { content: [...], isError: ... }
-      class AskToolServer
+      #   class MyTool
+      #     def name; "hello" end
+      #     def description; "Says hello" end
+      #     def params_schema; nil end
+      #     def call(args = {}); OpenStruct.new(ok?: true, output: "Hello!") end
+      #   end
+      #
+      #   adapter = ToolServer.new([MyTool.new])
+      #   adapter.definitions  # => [{ name: "hello", ... }]
+      #   adapter.call("hello", {})  # => { content: [...], isError: false }
+      class ToolServer
         attr_reader :tools
 
-        # @param tools [Array<#call, #name, #description, #params_schema>] tool instances to expose.
-        #   Each tool must respond to name, description, params_schema, and call(args).
+        # @param tools [Array<#call, #name, #description, #params_schema>] tool instances to expose
         def initialize(tools = [])
           @tools = tools
           @tool_map = tools.each_with_object({}) { |t, h| h[t.name] = t }
@@ -44,12 +51,10 @@ module Ask
             return error_result("Tool not found: #{name}")
           end
 
-          # Stringify keys — Ask::Tool subclasses expect string keys
           normalized = deep_stringify_keys(arguments)
           result = tool.call(normalized)
           wrap_result(result)
         rescue StandardError => e
-          # If the tool raised Ask::Tool::Halt, treat it as a success
           if defined?(Ask::Tool::Halt) && e.is_a?(Ask::Tool::Halt)
             return { content: [{ type: "text", text: e.content.to_s }], isError: false }
           end

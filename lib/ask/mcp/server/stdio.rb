@@ -26,7 +26,7 @@ module Ask
           @prompts = prompts
           @debug = debug
 
-          @adapter = Adapters::AskToolServer.new(tools || [])
+          @adapter = Adapters::ToolServer.new(tools || [])
           @initialized = false
           @running = false
         end

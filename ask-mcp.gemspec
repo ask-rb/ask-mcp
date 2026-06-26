@@ -8,7 +8,7 @@ Gem::Specification.new do |spec|
 
   spec.summary = "Model Context Protocol (MCP) client and server for Ruby"
   spec.description = "Connect to MCP servers via stdio, SSE, and Streamable HTTP transports. " \
-                     "Run as an MCP server to expose Ask::Tool instances. " \
+                     "Run as an MCP server exposing any Ruby object as a tool. " \
                      "Discover tools, resources, and prompts. OAuth 2.1 authentication."
   spec.homepage = "https://github.com/ask-rb/ask-mcp"
   spec.license = "MIT"

@@ -2,9 +2,10 @@
 
 [![Gem Version](https://badge.fury.io/rb/ask-mcp.svg)](https://badge.fury.io/rb/ask-mcp)
 
-**Model Context Protocol (MCP) client for Ruby.** Connect to MCP servers via
-stdio, SSE, or Streamable HTTP transports. Discover tools, resources, and
-prompts. Supports the full MCP protocol with OAuth 2.1 authentication.
+**Model Context Protocol (MCP) client and server for Ruby.** Connect to MCP
+servers via stdio, SSE, or Streamable HTTP transports. Run as an MCP server
+to expose your own tools to any MCP client. No framework lock-in — just
+implement a couple of duck-typed methods and you're done.
 
 MCP is the industry standard for LLM tool discovery — the same protocol used by
 Claude Code, Codex, Cursor, and GitHub Copilot.
@@ -21,44 +22,49 @@ Or add to your Gemfile:
 gem "ask-mcp", "~> 0.1.0"
 ```
 
-## Quick Start
+## Quick Start — Client
+
+Connect to any MCP server and call its tools:
 
 ```ruby
 require "ask/mcp"
 
-# Connect to a local MCP server via stdio
 client = Ask::MCP.from_stdio("npx", ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"])
 client.start
 
-# List available tools
 client.tools.each { |name, tool| puts "#{name}: #{tool.description}" }
 
-# Call a tool
 result = client.call_tool("read_file", path: "/tmp/test.txt")
 puts result
 
-# Clean up
 client.stop
 ```
 
+## Quick Start — Server
 
-## Running as an MCP Server
-
-`ask-mcp` can run as a standalone MCP server over stdio, exposing any
-`Ask::Tool` instances to MCP-compatible clients (Codex Desktop, Claude Code, etc.).
+Run as a standalone MCP server exposing your own tools to any MCP client
+(Codex, Claude Code, Cursor, etc.). Any object that responds to `name`,
+`description`, `params_schema`, and `call(args)` will work:
 
 ```ruby
 require "ask/mcp"
-require "ask-tools-shell"
-require "ask-web-search"
 
-tools = Ask::Tools::Shell::TOOLS.map(&:new)
-tools << Ask::Tools::WebSearch.new
+# Define your tools — no base class needed, just duck typing
+class Greeter
+  def name; "greet" end
+  def description; "Greets someone by name" end
+  def params_schema
+    { type: "object", properties: { "name" => { "type" => "string" } }, required: ["name"] }
+  end
+  def call(args = {})
+    "Hello, #{args['name']}!"
+  end
+end
 
+# Start the server (blocking — runs until stdin closes)
 Ask::MCP::Server.start_stdio(
   name: "my-server",
-  tools: tools,
-  capabilities: { tools: {} }
+  tools: [Greeter.new]
 )
 ```
 
@@ -69,14 +75,58 @@ Configure your MCP client:
   "mcpServers": {
     "my-server": {
       "command": "ruby",
-      "args": ["path/to/your/script.rb"]
+      "args": ["/path/to/your/server.rb"]
     }
   }
 }
 ```
 
-For a production example, see [llm-proxy](https://github.com/ask-rb/llm-proxy)
-which embeds the same server and adds rate limiting, auth, and monitoring.
+Tools can return any value the client can use. The server automatically wraps
+the result into MCP's `content` array format.
+
+### What about complex tools?
+
+The result object from `call(args)` should respond to `ok?` (or `ok`) and
+`output` / `error_message`. Use `OpenStruct` for simple cases:
+
+```ruby
+require "ostruct"
+
+class BashTool
+  def name; "bash" end
+  def description; "Run a shell command" end
+  def params_schema
+    { type: "object", properties: { "command" => { "type" => "string" } }, required: ["command"] }
+  end
+  def call(args = {})
+    output = `#{args['command']} 2>&1`
+    OpenStruct.new(ok?: true, output: output)
+  rescue => e
+    OpenStruct.new(ok?: false, error_message: e.message)
+  end
+end
+```
+
+For a production example with shell tools, file ops, and web search,
+see [llm-proxy](https://github.com/ask-rb/llm-proxy).
+
+### Using with ask-tools
+
+If you use the ask-rb ecosystem, you can expose Ask::Tool subclasses directly:
+
+```ruby
+require "ask/mcp"
+require "ask-tools-shell"
+require "ask-web-search"
+
+tools = Ask::Tools::Shell::TOOLS.map(&:new) + [Ask::Tools::WebSearch.new]
+
+Ask::MCP::Server.start_stdio(
+  name: "my-server",
+  tools: tools,
+  capabilities: { tools: {} }
+)
+```
 
 ## Transports
 
@@ -183,7 +233,6 @@ wrapped = Ask::MCP::Adapters::AskTool.wrap(client.tools)
 wrapped.each { |name, adapter| agent.register_tool(adapter.to_ask_tool) }
 ```
 
-
 ## Architecture
 
 ```
@@ -205,8 +254,9 @@ ask-mcp/
 │   └── token.rb                           # Token-based auth
 └── lib/ask/mcp/adapters/
     ├── ask_tool.rb                        # MCP::Tool → Ask::Tool adapter
-    └── ask_tool_server.rb                 # Ask::Tool → MCP server adapter (reverse)
+    └── tool_server.rb                     # Duck-typed tools → MCP server adapter
 ```
+
 ## Development
 
 ```bash

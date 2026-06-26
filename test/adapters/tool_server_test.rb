@@ -2,7 +2,7 @@
 
 require_relative "../test_helper"
 
-class AskToolServerTest < Minitest::Test
+class ToolServerTest < Minitest::Test
   # Test helpers — simple objects that quack like Ask::Tool and Ask::Result
 
   class EchoTool
@@ -35,7 +35,7 @@ class AskToolServerTest < Minitest::Test
   end
 
   def setup
-    @adapter = Ask::MCP::Adapters::AskToolServer.new([EchoTool.new, ErrorTool.new, NoopTool.new])
+    @adapter = Ask::MCP::Adapters::ToolServer.new([EchoTool.new, ErrorTool.new, NoopTool.new])
   end
 
   # --- definitions ---
@@ -99,7 +99,7 @@ class AskToolServerTest < Minitest::Test
       def params_schema; nil end
       def call(args = {}); raise RuntimeError, "kaboom" end
     end
-    adapter = Ask::MCP::Adapters::AskToolServer.new([tool.new])
+    adapter = Ask::MCP::Adapters::ToolServer.new([tool.new])
     result = adapter.call("boom", {})
     assert_equal true, result[:isError]
     assert_match(/RuntimeError/, result[:content].first[:text])
@@ -115,7 +115,7 @@ class AskToolServerTest < Minitest::Test
         OpenStruct.new(ok?: true, output: "stopped", error_message: nil, ok: true)
       end
     end
-    adapter = Ask::MCP::Adapters::AskToolServer.new([tool.new])
+    adapter = Ask::MCP::Adapters::ToolServer.new([tool.new])
     result = adapter.call("halter", {})
     assert_equal false, result[:isError], "Halt-style result should succeed"
     assert_equal "stopped", result[:content].first[:text]
@@ -130,7 +130,7 @@ class AskToolServerTest < Minitest::Test
         OpenStruct.new(ok?: true, output: { summary: "done", detail: "stuff" }, error_message: nil, ok: true)
       end
     end
-    adapter = Ask::MCP::Adapters::AskToolServer.new([tool.new])
+    adapter = Ask::MCP::Adapters::ToolServer.new([tool.new])
     result = adapter.call("hashy", {})
     assert_equal "done", result[:content].first[:text]
   end
@@ -144,7 +144,7 @@ class AskToolServerTest < Minitest::Test
         OpenStruct.new(ok?: true, output: { raw: "data" }, error_message: nil, ok: true)
       end
     end
-    adapter = Ask::MCP::Adapters::AskToolServer.new([tool.new])
+    adapter = Ask::MCP::Adapters::ToolServer.new([tool.new])
     result = adapter.call("raw", {})
     assert result[:content].first[:text].include?("data")
   end
@@ -161,7 +161,7 @@ class AskToolServerTest < Minitest::Test
       end
     end
     instance = tool.new
-    adapter = Ask::MCP::Adapters::AskToolServer.new([instance])
+    adapter = Ask::MCP::Adapters::ToolServer.new([instance])
     adapter.call("capture", { "key" => "value", "nested" => { "inner" => 1 } })
     assert_equal "value", instance.received_args["key"]
     assert_equal 1, instance.received_args["nested"]["inner"]
