@@ -6,10 +6,10 @@ Gem::Specification.new do |spec|
   spec.authors = ["Kaka Ruto"]
   spec.email = ["kaka@myrrlabs.com"]
 
-  spec.summary = "Model Context Protocol (MCP) client for Ruby"
+  spec.summary = "Model Context Protocol (MCP) client and server for Ruby"
   spec.description = "Connect to MCP servers via stdio, SSE, and Streamable HTTP transports. " \
-                     "Discover tools, resources, and prompts. OAuth 2.1 authentication. " \
-                     "Convert MCP tools to Ask::Tool instances. Supports the full MCP spec."
+                     "Run as an MCP server to expose Ask::Tool instances. " \
+                     "Discover tools, resources, and prompts. OAuth 2.1 authentication."
   spec.homepage = "https://github.com/ask-rb/ask-mcp"
   spec.license = "MIT"
 

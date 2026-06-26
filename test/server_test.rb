@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "test_helper"
+require "open3"
 
 class ServerTest < Minitest::Test
   def test_server_construction
@@ -73,5 +74,52 @@ class ServerTest < Minitest::Test
   def test_server_empty_tools
     server = Ask::MCP::Server.new(name: "no-tools")
     assert_empty server.tool_names
+  end
+end
+
+class ServerStartStdioTest < Minitest::Test
+  def test_start_stdio_accepts_required_params
+    assert_respond_to Ask::MCP::Server, :start_stdio
+
+    script = File.expand_path("support/test_start_stdio.rb", __dir__)
+    stdin, _stdout, _stderr, wait_thr = Open3.popen3(
+      { "BUNDLE_GEMFILE" => File.expand_path("../Gemfile", __dir__) },
+      "ruby", script
+    )
+    stdin.puts('{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"0.1.0","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}')
+    stdin.flush
+    stdin.close
+    exit_status = wait_thr.value
+    assert exit_status.success?, "start_stdio server should exit cleanly"
+  end
+
+  def test_start_stdio_with_debug
+    script = File.expand_path("support/test_start_stdio_debug.rb", __dir__)
+    stdin, _stdout, stderr, wait_thr = Open3.popen3(
+      { "BUNDLE_GEMFILE" => File.expand_path("../Gemfile", __dir__) },
+      "ruby", script
+    )
+    stdin.puts('{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"0.1.0","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}')
+    stdin.flush
+    stdin.close
+
+    stderr_output = +""
+    begin
+      while (char = stderr.read_nonblock(4096))
+        stderr_output << char
+      end
+    rescue IO::WaitReadable, EOFError
+      begin
+        stderr_output << stderr.read
+      rescue
+      end
+    rescue IOError
+    end
+
+    exit_status = wait_thr.value
+    assert exit_status.success?
+    assert_match(/Server starting/, stderr_output, "Debug mode should log to stderr")
+  ensure
+    stdin&.close rescue nil
   end
 end

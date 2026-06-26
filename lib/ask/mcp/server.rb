@@ -36,6 +36,20 @@ module Ask
           prompts: @prompts.values.map(&:to_h)
         }
       end
+
+      # Start an MCP server over stdio.
+      # Blocking — designed to be the last line of an entry-point script.
+      #
+      # @param name [String] server name
+      # @param tools [Array<#call, #name, #description, #params_schema>] tool instances to expose
+      # @param capabilities [Hash] MCP capabilities (default: { tools: {} })
+      # @param debug [Boolean] enable stderr debug logging
+      def self.start_stdio(name:, tools: [], capabilities: { tools: {} }, debug: false)
+        Stdio.new(name: name, tools: tools, capabilities: capabilities, debug: debug).start
+      end
     end
   end
 end
+
+# Load Server subclasses after the Server class is defined
+require_relative "server/stdio"

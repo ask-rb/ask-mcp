@@ -9,6 +9,7 @@ end
 
 # frozen_string_literal: true
 
+require "ostruct"
 $LOAD_PATH.unshift File.expand_path("../../lib", __dir__)
 require "ask/mcp"
 require "minitest/autorun"

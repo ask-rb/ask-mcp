@@ -41,6 +41,43 @@ puts result
 client.stop
 ```
 
+
+## Running as an MCP Server
+
+`ask-mcp` can run as a standalone MCP server over stdio, exposing any
+`Ask::Tool` instances to MCP-compatible clients (Codex Desktop, Claude Code, etc.).
+
+```ruby
+require "ask/mcp"
+require "ask-tools-shell"
+require "ask-web-search"
+
+tools = Ask::Tools::Shell::TOOLS.map(&:new)
+tools << Ask::Tools::WebSearch.new
+
+Ask::MCP::Server.start_stdio(
+  name: "my-server",
+  tools: tools,
+  capabilities: { tools: {} }
+)
+```
+
+Configure your MCP client:
+
+```json
+{
+  "mcpServers": {
+    "my-server": {
+      "command": "ruby",
+      "args": ["path/to/your/script.rb"]
+    }
+  }
+}
+```
+
+For a production example, see [llm-proxy](https://github.com/ask-rb/llm-proxy)
+which embeds the same server and adds rate limiting, auth, and monitoring.
+
 ## Transports
 
 ```ruby
@@ -146,28 +183,30 @@ wrapped = Ask::MCP::Adapters::AskTool.wrap(client.tools)
 wrapped.each { |name, adapter| agent.register_tool(adapter.to_ask_tool) }
 ```
 
+
 ## Architecture
 
 ```
 ask-mcp/
 ├── lib/ask/mcp.rb                         # Entry point, factory methods
 ├── lib/ask/mcp/client.rb                  # MCP client (connect, call_tool, etc.)
-├── lib/ask/mcp/server.rb                  # MCP server representation
+├── lib/ask/mcp/server.rb                  # MCP server representation + Server.start_stdio entry point
+├── lib/ask/mcp/server/stdio.rb            # MCP server stdio runtime (run as server)
 ├── lib/ask/mcp/tool.rb                    # MCP tool representation
 ├── lib/ask/mcp/resource.rb                # MCP resource representation
 ├── lib/ask/mcp/prompt.rb                  # MCP prompt representation
 ├── lib/ask/mcp/native/messages.rb         # JSON-RPC message layer
 ├── lib/ask/mcp/transport/
-│   ├── stdio.rb                           # stdio transport
+│   ├── stdio.rb                           # stdio transport (client direction)
 │   ├── sse.rb                             # Server-Sent Events transport
 │   └── streamable_http.rb                 # Streamable HTTP transport
 ├── lib/ask/mcp/auth/
 │   ├── oauth.rb                           # OAuth 2.1 for MCP
 │   └── token.rb                           # Token-based auth
 └── lib/ask/mcp/adapters/
-    └── ask_tool.rb                        # MCP::Tool → Ask::Tool adapter
+    ├── ask_tool.rb                        # MCP::Tool → Ask::Tool adapter
+    └── ask_tool_server.rb                 # Ask::Tool → MCP server adapter (reverse)
 ```
-
 ## Development
 
 ```bash

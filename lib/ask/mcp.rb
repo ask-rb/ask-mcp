@@ -28,6 +28,7 @@ module Ask
 
     module Adapters
       autoload :AskTool, "ask/mcp/adapters/ask_tool"
+      autoload :AskToolServer, "ask/mcp/adapters/ask_tool_server"
     end
 
     class Error < StandardError; end

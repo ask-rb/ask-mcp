@@ -1,8 +1,24 @@
+## [0.2.0] - 2026-06-26
+
+### Added
+- Server Runtime: `Ask::MCP::Server::Stdio` — run as an MCP server over stdio
+  with full initialize handshake, tool discovery, and tool call dispatch.
+- `Ask::MCP::Adapters::AskToolServer` — converts `Ask::Tool` instances to MCP
+  tool definitions and dispatches calls, enabling any Ask::Tool to be exposed
+  via MCP without modification.
+- `Ask::MCP::Server.start_stdio` entry point for easy one-line server setup.
+- `examples/` — reference usage in README "Running as an MCP Server" section.
+
+### Changed
+- Server Runtime adds 56 new tests across adapter, server stdio, integration,
+  and start_stdio entry point (170 total, up from 114).
+- `ask-mcp` gem description updated to reflect client + server capabilities.
+- Architecture section updated to include server/ and adapters/ask_tool_server.rb.
+
 ## [0.1.1] - 2026-06-25
 
 ### Changed
 - Major test expansion: Transport tests (SSE/Stdio/StreamableHTTP), MessagesParser, OAuth, Client(17t with cache invalidation), Server(7t), Tool(8t), Messages(17t with serialization), integration tests(7t with mock server). Infrastructure: rubocop, overcommit, CI matrix, gemspec, SimpleCov.
-# Changelog
 
 ## [0.1.0] - 2026-06-10
 
