@@ -4,8 +4,8 @@
 $LOAD_PATH.unshift File.expand_path("../../lib", __dir__)
 require "ask/mcp"
 require "ostruct"
+require "json"
 
-# Define test tools that quack like Ask::Tool
 class EchoTestTool
   def name; "echo" end
   def description; "Echo back a message" end
@@ -58,12 +58,41 @@ class AddTestTool
   end
 end
 
+class SlowTestTool
+  def name; "slow" end
+  def description; "Sleeps for N seconds" end
+  def params_schema
+    { type: "object", properties: { seconds: { type: "number", description: "Seconds to sleep" } }, required: ["seconds"] }
+  end
+  def call(args = {})
+    secs = args["seconds"].to_f
+    sleep(secs)
+    OpenStruct.new(ok?: true, output: "slept #{secs}s", error_message: nil, ok: true)
+  end
+end
+
+class MultilineTestTool
+  def name; "multiline" end
+  def description; "Returns multiline text" end
+  def params_schema; nil end
+  def call(args = {})
+    OpenStruct.new(
+      ok?: true,
+      output: "line one\nline two\nline three\n\nspecial chars: \u2603 \u2728 \nend",
+      error_message: nil,
+      ok: true
+    )
+  end
+end
+
 tools = [
   EchoTestTool.new,
   ReverseTestTool.new,
   FailTestTool.new,
   NoopTestTool.new,
-  AddTestTool.new
+  AddTestTool.new,
+  SlowTestTool.new,
+  MultilineTestTool.new
 ]
 
 server = Ask::MCP::Server::Stdio.new(

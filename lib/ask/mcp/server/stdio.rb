@@ -8,6 +8,8 @@ module Ask
     class Server
       # MCP server over stdio transport.
       class Stdio
+        MAX_RESULT_CACHE = 100
+
         attr_reader :name, :tools, :capabilities, :resources, :prompts
 
         def initialize(name:, tools: [], capabilities: {}, resources: {}, prompts: {},
@@ -22,16 +24,23 @@ module Ask
           @adapter = Adapters::ToolServer.new(tools || [])
           @initialized = false
           @running = false
+          @shutdown_requested = false
+          @result_cache = {}
         end
 
         def start
           @running = true
           $stdout.sync = true
 
+          # Graceful shutdown: on TERM/HUP, set flag and close stdin to
+          # unblock the read loop so the current tool call can finish.
+          trap("TERM") { graceful_shutdown }
+          trap("HUP")  { graceful_shutdown }
+
           debug_log "Server starting: #{@name} (PID #{Process.pid})"
           debug_log "Tools: #{@adapter.definitions.map { |d| d[:name] }.join(', ')}"
 
-          while @running && (line = $stdin.gets)
+          while @running && !@shutdown_requested && (line = $stdin.gets)
             line = line.strip
             next if line.empty?
             process_line(line)
@@ -39,11 +48,14 @@ module Ask
 
           debug_log "stdin closed — exiting"
         rescue Errno::EBADF, IOError
-          # stdin closed externally
+          # stdin closed externally (e.g. from trap handler)
         rescue SignalException
           # SIGTERM or SIGHUP during blocked read
         ensure
           @running = false
+          @shutdown_requested = false
+          trap("TERM", "DEFAULT")
+          trap("HUP", "DEFAULT")
         end
 
         def stop
@@ -55,6 +67,13 @@ module Ask
         end
 
         private
+
+        def graceful_shutdown
+          @shutdown_requested = true
+          # Close stdin to unblock $stdin.gets so the signal handler
+          # returns promptly and the process exits cleanly.
+          $stdin.close rescue nil
+        end
 
         def process_line(line)
           msg = JSON.parse(line, symbolize_names: true)
@@ -111,6 +130,14 @@ module Ask
         end
 
         def handle_tool_call(id, params)
+          cache_key = id.to_s
+
+          # Return cached result for retried requests (same ID, already processed)
+          if @result_cache.key?(cache_key)
+            debug_log "Returning cached result for id=#{id}"
+            return send_result(id, @result_cache[cache_key])
+          end
+
           tool_name = params[:name].to_s
           arguments = params[:arguments] || {}
 
@@ -121,6 +148,9 @@ module Ask
                    else
                      @adapter.call(tool_name, arguments)
                    end
+
+          @result_cache[cache_key] = result
+          trim_cache
 
           send_result(id, result)
         rescue Timeout::Error
@@ -143,6 +173,11 @@ module Ask
           return unless @debug
           ts = Time.now.strftime("%H:%M:%S.%L")
           $stderr.puts "[#{ts}] [ask-mcp] #{msg}"
+        end
+
+        def trim_cache
+          return if @result_cache.size <= MAX_RESULT_CACHE
+          @result_cache.shift(@result_cache.size - MAX_RESULT_CACHE)
         end
       end
     end
