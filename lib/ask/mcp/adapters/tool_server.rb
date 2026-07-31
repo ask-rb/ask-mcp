@@ -8,28 +8,18 @@ module Ask
       # respond to +name+, +description+, +params_schema+, and +call(args)+ and
       # exposes them over MCP.
       #
-      # Usage:
-      #   class MyTool
-      #     def name; "hello" end
-      #     def description; "Says hello" end
-      #     def params_schema; nil end
-      #     def call(args = {}); OpenStruct.new(ok?: true, output: "Hello!") end
-      #   end
-      #
-      #   adapter = ToolServer.new([MyTool.new])
-      #   adapter.definitions  # => [{ name: "hello", ... }]
-      #   adapter.call("hello", {})  # => { content: [...], isError: false }
+      # Tools can return:
+      #   - An object responding to #ok?/#ok and #output/#error_message (Ask::Result style)
+      #   - A plain String (treated as success)
+      #   - Any other value (treated as success, .to_s is used for the response)
       class ToolServer
         attr_reader :tools
 
-        # @param tools [Array<#call, #name, #description, #params_schema>] tool instances to expose
         def initialize(tools = [])
           @tools = tools
           @tool_map = tools.each_with_object({}) { |t, h| h[t.name] = t }
         end
 
-        # MCP tool definitions for tools/list
-        # @return [Array<Hash>]
         def definitions
           @tools.map do |tool|
             schema = tool.params_schema || { type: "object", properties: {}, required: [] }
@@ -41,10 +31,6 @@ module Ask
           end
         end
 
-        # Call a tool and wrap the result in MCP format
-        # @param name [String] tool name
-        # @param arguments [Hash] arguments (may have symbol or string keys)
-        # @return [Hash] { content: [...], isError: true/false }
         def call(name, arguments = {})
           tool = @tool_map[name]
           unless tool
@@ -64,18 +50,31 @@ module Ask
         private
 
         def wrap_result(result)
-          if result.respond_to?(:ok?) ? result.ok? : result.ok
-            output = result.respond_to?(:output) ? result.output : result.to_s
-            text = output.is_a?(Hash) ? (output[:summary] || output.to_s) : output.to_s
-            { content: [{ type: "text", text: text }], isError: false }
-          else
-            msg = result.respond_to?(:error_message) ? result.error_message : result.to_s
-            { content: [{ type: "text", text: "Error: #{msg}" }], isError: true }
+          # Plain strings are always a success
+          if result.is_a?(String)
+            return { content: [{ type: "text", text: result }], isError: false }
           end
+
+          # Result-like objects (Ask::Result, OpenStruct, etc.)
+          if result.respond_to?(:ok?) || result.respond_to?(:ok)
+            ok = result.respond_to?(:ok?) ? result.ok? : result.ok
+            return success_result(result, ok) if ok
+            return error_result(result.respond_to?(:error_message) ? result.error_message : result.to_s)
+          end
+
+          # Everything else — treat as success
+          text = result.is_a?(Hash) ? (result[:summary] || result.to_s) : result.to_s
+          { content: [{ type: "text", text: text }], isError: false }
+        end
+
+        def success_result(result, _ok)
+          output = result.respond_to?(:output) ? result.output : result.to_s
+          text = output.is_a?(Hash) ? (output[:summary] || output.to_s) : output.to_s
+          { content: [{ type: "text", text: text }], isError: false }
         end
 
         def error_result(message)
-          { content: [{ type: "text", text: message }], isError: true }
+          { content: [{ type: "text", text: "Error: #{message}" }], isError: true }
         end
 
         def deep_stringify_keys(obj)

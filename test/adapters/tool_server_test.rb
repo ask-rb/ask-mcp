@@ -167,3 +167,37 @@ class ToolServerTest < Minitest::Test
     assert_equal 1, instance.received_args["nested"]["inner"]
   end
 end
+
+class ToolServerStringResultTest < Minitest::Test
+  class StringTool
+    def name; "greet" end
+    def description; "Returns a plain string" end
+    def params_schema; nil end
+    def call(args = {})
+      "Hello, #{args['name']}!"
+    end
+  end
+
+  class NumericTool
+    def name; "pi" end
+    def description; "Returns a number" end
+    def params_schema; nil end
+    def call(args = {})
+      3.14159
+    end
+  end
+
+  def test_plain_string_return_is_success
+    adapter = Ask::MCP::Adapters::ToolServer.new([StringTool.new])
+    result = adapter.call("greet", { "name" => "World" })
+    assert_equal false, result[:isError]
+    assert_equal "Hello, World!", result[:content].first[:text]
+  end
+
+  def test_numeric_return_is_success
+    adapter = Ask::MCP::Adapters::ToolServer.new([NumericTool.new])
+    result = adapter.call("pi", {})
+    assert_equal false, result[:isError]
+    assert_equal "3.14159", result[:content].first[:text]
+  end
+end

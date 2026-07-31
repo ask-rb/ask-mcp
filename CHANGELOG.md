@@ -1,3 +1,17 @@
+## [0.4.1] - 2026-07-31
+
+### Changed
+
+- **`ToolServer` result wrapping** — plain `String` results are always treated
+  as success; result-like objects (`Ask::Result`, OpenStruct, etc.) use
+  `ok?`/`ok` and `output`/`error_message`; any other value is treated as
+  success with `to_s` used for the response.
+
+### Fixed
+
+- **Stdio server protocol version** — pins `PROTOCOL_VERSION` to
+  `2025-06-18` and echoes it back in the `initialize` response.
+
 ## [0.4.0] - 2026-06-26
 
 ### Added

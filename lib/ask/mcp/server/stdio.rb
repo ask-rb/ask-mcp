@@ -9,6 +9,7 @@ module Ask
       # MCP server over stdio transport.
       class Stdio
         MAX_RESULT_CACHE = 100
+        PROTOCOL_VERSION = "2025-06-18"
 
         attr_reader :name, :tools, :capabilities, :resources, :prompts
 
