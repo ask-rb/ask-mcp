@@ -2,13 +2,11 @@
 
 [![Gem Version](https://badge.fury.io/rb/ask-mcp.svg)](https://badge.fury.io/rb/ask-mcp)
 
-**Model Context Protocol (MCP) client and server for Ruby.** Connect to MCP
-servers via stdio, SSE, or Streamable HTTP transports. Run as an MCP server
-to expose your own tools to any MCP client. No framework lock-in — just
-implement a couple of duck-typed methods and you're done.
-
-MCP is the industry standard for LLM tool discovery — the same protocol used by
-Claude Code, Codex, Cursor, and GitHub Copilot.
+Model Context Protocol (MCP) client and server for Ruby. Connect to MCP
+servers over stdio, SSE, or Streamable HTTP transports, or run as an MCP
+server to expose your own tools to any MCP client (Claude Code, Codex, Cursor,
+GitHub Copilot). No framework lock-in: implement a couple of duck-typed
+methods and you are done.
 
 ## Installation
 
@@ -16,13 +14,7 @@ Claude Code, Codex, Cursor, and GitHub Copilot.
 gem "ask-mcp"
 ```
 
-Or add to your Gemfile:
-
-```ruby
-gem "ask-mcp", "~> 0.1.0"
-```
-
-## Quick Start — Client
+## Quick Start: Client
 
 Connect to any MCP server and call its tools:
 
@@ -40,16 +32,14 @@ puts result
 client.stop
 ```
 
-## Quick Start — Server
+## Quick Start: Server
 
-Run as a standalone MCP server exposing your own tools to any MCP client
-(Codex, Claude Code, Cursor, etc.). Any object that responds to `name`,
-`description`, `params_schema`, and `call(args)` will work:
+Run as a standalone MCP server. Any object that responds to `name`,
+`description`, `params_schema`, and `call(args)` works:
 
 ```ruby
 require "ask/mcp"
 
-# Define your tools — no base class needed, just duck typing
 class Greeter
   def name; "greet" end
   def description; "Greets someone by name" end
@@ -61,14 +51,11 @@ class Greeter
   end
 end
 
-# Start the server (blocking — runs until stdin closes)
-Ask::MCP::Server.start_stdio(
-  name: "my-server",
-  tools: [Greeter.new]
-)
+# Blocking: runs until stdin closes
+Ask::MCP::Server.start_stdio(name: "my-server", tools: [Greeter.new])
 ```
 
-Configure your MCP client:
+Point any MCP client at it:
 
 ```json
 {
@@ -81,198 +68,63 @@ Configure your MCP client:
 }
 ```
 
-Tools can return any value the client can use. The server automatically wraps
-the result into MCP's `content` array format.
-
-### What about complex tools?
-
-The result object from `call(args)` should respond to `ok?` (or `ok`) and
-`output` / `error_message`. Use `OpenStruct` for simple cases:
-
-```ruby
-require "ostruct"
-
-class BashTool
-  def name; "bash" end
-  def description; "Run a shell command" end
-  def params_schema
-    { type: "object", properties: { "command" => { "type" => "string" } }, required: ["command"] }
-  end
-  def call(args = {})
-    output = `#{args['command']} 2>&1`
-    OpenStruct.new(ok?: true, output: output)
-  rescue => e
-    OpenStruct.new(ok?: false, error_message: e.message)
-  end
-end
-```
-
-For a production example with shell tools, file ops, and web search,
-see [llm-proxy](https://github.com/ask-rb/llm-proxy).
-
-### Using with ask-tools
-
-If you use the ask-rb ecosystem, you can expose Ask::Tool subclasses directly:
-
-```ruby
-require "ask/mcp"
-require "ask-tools-shell"
-require "ask-web-search"
-
-tools = Ask::Tools::Shell::TOOLS.map(&:new) + [Ask::Tools::WebSearch.new]
-
-Ask::MCP::Server.start_stdio(
-  name: "my-server",
-  tools: tools,
-  capabilities: { tools: {} }
-)
-```
+The result of `call(args)` may be a plain value, or an object responding to
+`ok?` and `output` / `error_message` (for example an `OpenStruct`). The server
+wraps results into MCP's `content` array format automatically.
 
 ## Transports
 
 ```ruby
-# stdio — local processes
+# stdio: local processes
 Ask::MCP.from_stdio("npx", ["-y", "@modelcontextprotocol/server-github"])
 
-# SSE — remote servers with Server-Sent Events
+# SSE: remote servers with Server-Sent Events
 Ask::MCP.from_sse("https://mcp.example.com/sse")
 
-# Streamable HTTP — remote servers
+# Streamable HTTP: remote servers
 Ask::MCP.from_http("https://mcp.example.com/mcp")
 ```
 
-## API
+Each factory returns a client backed by `Ask::MCP::Transport::Stdio`,
+`Ask::MCP::Transport::SSE`, or `Ask::MCP::Transport::StreamableHTTP`.
 
-### Client Lifecycle
+## Essential API
 
-```ruby
-# Create a client with any transport
-transport = Ask::MCP::Transport::Stdio.new("ruby", ["server.rb"])
-client = Ask::MCP::Client.new(transport, timeout: 30)
-
-# Start the session (sends initialize + receives capabilities)
-client.start
-
-# Use the client
-client.tools       # => { "tool_name" => #<Ask::MCP::Tool> }
-client.resources   # => { "resource_uri" => #<Ask::MCP::Resource> }
-client.prompts     # => { "prompt_name" => #<Ask::MCP::Prompt> }
-client.call_tool("tool_name", arg1: "value")
-client.read_resource("file:///path")
-client.get_prompt("prompt_name", arg1: "value")
-
-# Stop the session
-client.stop
-```
-
-### Tool, Resource, Prompt Objects
-
-```ruby
-# Tool
-tool = Ask::MCP::Tool.new(
-  name: "read_file",
-  description: "Read a file from disk",
-  input_schema: {
-    type: "object",
-    properties: { path: { type: "string" } },
-    required: ["path"]
-  }
-)
-tool.name         # => "read_file"
-tool.description  # => "Read a file from disk"
-tool.input_schema # => { type: "object", ... }
-
-# Resource
-resource = Ask::MCP::Resource.new(
-  uri: "file:///tmp/test.txt",
-  name: "Test File",
-  mime_type: "text/plain"
-)
-
-# Prompt
-prompt = Ask::MCP::Prompt.new(
-  name: "greet",
-  description: "Generate a greeting",
-  arguments: [{ name: "name", description: "Name to greet", required: true }]
-)
-```
-
-### Authentication
-
-```ruby
-# Token-based auth
-token = Ask::MCP::Auth::Token.new("my-api-token")
-headers = token.apply({})  # => { "Authorization" => "Bearer my-api-token" }
-
-# OAuth 2.1
-oauth = Ask::MCP::Auth::OAuth.new(
-  client_id: "my-client",
-  client_secret: "my-secret",
-  token_url: "https://auth.example.com/token",
-  scopes: ["mcp"]
-)
-oauth.authenticate!
-headers = oauth.apply({})
-```
+| Entry point | Purpose |
+|---|---|
+| `client.start` / `client.stop` | Start the session (initialize + capabilities) and shut it down |
+| `client.tools` / `client.resources` / `client.prompts` | Indexed lists exposed by the server |
+| `client.call_tool(name, args)` | Invoke a tool; also `read_resource(uri)` and `get_prompt(name, args)` |
+| `Ask::MCP::Adapters::AskTool.wrap(tools_hash)` | Adapter from MCP tools to `Ask::Tool` instances for ask-agent |
+| `Ask::MCP::Adapters::ToolServer` | Adapter from duck-typed tools to MCP server tools |
+| `Ask::MCP::Auth::Token.new(token)` | Token-based auth (`apply(headers)`) |
+| `Ask::MCP::Auth::OAuth.new(client_id:, token_url:, ...)` | OAuth for MCP (`authenticate!`, `apply(headers)`) |
 
 ### With ask-agent
 
 ```ruby
-require "ask/mcp"
-
 client = Ask::MCP.from_stdio("npx", ["-y", "@modelcontextprotocol/server-github"])
 client.start
 
-# Convert MCP tools to Ask::Tool instances for use with Ask::Agent
-client.tools.each do |name, mcp_tool|
-  agent.register_tool(mcp_tool.to_ask_tool)
-end
-
-# Or use the adapter directly
 wrapped = Ask::MCP::Adapters::AskTool.wrap(client.tools)
 wrapped.each { |name, adapter| agent.register_tool(adapter.to_ask_tool) }
 ```
 
-## Architecture
+Expose `Ask::Tool` subclasses as an MCP server with `Ask::MCP::Server.start_stdio(name:, tools:, capabilities: { tools: {} })`; the `ToolServer` adapter handles them.
 
-```
-ask-mcp/
-├── lib/ask/mcp.rb                         # Entry point, factory methods
-├── lib/ask/mcp/client.rb                  # MCP client (connect, call_tool, etc.)
-├── lib/ask/mcp/server.rb                  # MCP server representation + Server.start_stdio entry point
-├── lib/ask/mcp/server/stdio.rb            # MCP server stdio runtime (run as server)
-├── lib/ask/mcp/tool.rb                    # MCP tool representation
-├── lib/ask/mcp/resource.rb                # MCP resource representation
-├── lib/ask/mcp/prompt.rb                  # MCP prompt representation
-├── lib/ask/mcp/native/messages.rb         # JSON-RPC message layer
-├── lib/ask/mcp/transport/
-│   ├── stdio.rb                           # stdio transport (client direction)
-│   ├── sse.rb                             # Server-Sent Events transport
-│   └── streamable_http.rb                 # Streamable HTTP transport
-├── lib/ask/mcp/auth/
-│   ├── oauth.rb                           # OAuth 2.1 for MCP
-│   └── token.rb                           # Token-based auth
-└── lib/ask/mcp/adapters/
-    ├── ask_tool.rb                        # MCP::Tool → Ask::Tool adapter
-    └── tool_server.rb                     # Duck-typed tools → MCP server adapter
-```
+## Full documentation
+
+The full ask-rb documentation lives at https://ask-rb.github.io/ask-docs.
+https://ask-rb.github.io/ask-docs/core/mcp covers ask-mcp in depth, including
+tool, resource, and prompt objects, protocol details, and auth. See also the
+[Auth Setup Guide](docs/auth-setup.md) for token and OAuth 2.1 setup with
+ask-auth. API reference: https://ask-rb.github.io/ask-docs/reference/api.
 
 ## Development
 
-```bash
-# Run tests
+bundle install
 bundle exec rake test
-
-# Run specific tests
-bundle exec ruby -Itest test/messages_test.rb
-bundle exec ruby -Itest test/stdio_integration_test.rb
-```
 
 ## License
 
 MIT
-
-## Authentication
-
-See the [Auth Setup Guide](docs/auth-setup.md) for detailed documentation on
-token-based and OAuth 2.1 authentication, including ask-auth integration.
