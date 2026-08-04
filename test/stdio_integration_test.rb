@@ -35,9 +35,10 @@ class StdioIntegrationTest < Minitest::Test
       transport.start
       req = Ask::MCP::Native::Messages::Request.new(method: "initialize", id: 1)
       transport.send(req)
-      sleep 0.2
+      # Poll instead of sleeping: the subprocess may take >0.2s to boot under load.
+      wait_until(timeout: 2.5) { received.any? }
       transport.stop
-      assert received.any?
+      assert received.any?, "Expected a message from the mock server"
     end
   rescue Timeout::Error
     skip "send/receive timed out"
@@ -165,5 +166,42 @@ class StdioServerRoundtripTest < Minitest::Test
     end
   rescue Timeout::Error
     skip "stop timed out"
+  end
+
+  def test_client_resources_roundtrip
+    Timeout.timeout(5) do
+      transport = Ask::MCP::Transport::Stdio.new("ruby", [@script_path])
+      @client = Ask::MCP::Client.new(transport, timeout: 3)
+      @client.start
+      assert @client.initialized?
+
+      resources = @client.resources
+      assert resources.key?("greeting://world"), "expected greeting resource"
+      world = resources["greeting://world"]
+      assert_equal "World Greeting", world.title
+      assert_equal "https://example.com/world-icon.png", world.icons.first[:src]
+
+      contents = @client.read_resource("greeting://world")
+      assert_equal "Hello, World!", contents.first[:text]
+    end
+  rescue Timeout::Error
+    skip "resources round-trip timed out"
+  end
+
+  def test_client_prompts_roundtrip
+    Timeout.timeout(5) do
+      transport = Ask::MCP::Transport::Stdio.new("ruby", [@script_path])
+      @client = Ask::MCP::Client.new(transport, timeout: 3)
+      @client.start
+      assert @client.initialized?
+
+      prompts = @client.prompts
+      assert prompts.key?("greet"), "expected greet prompt"
+
+      messages = @client.get_prompt("greet")
+      assert_equal "user", messages.first[:role]
+    end
+  rescue Timeout::Error
+    skip "prompts round-trip timed out"
   end
 end

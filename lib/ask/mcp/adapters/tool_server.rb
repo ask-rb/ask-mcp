@@ -23,11 +23,18 @@ module Ask
         def definitions
           @tools.map do |tool|
             schema = tool.params_schema || { type: "object", properties: {}, required: [] }
-            {
+            defn = {
               name: tool.name,
               description: tool.description || "",
               inputSchema: schema
             }
+            # 2025-11-25: optional display metadata (SEP-973 icons, title).
+            # Only included when the tool object provides them.
+            defn[:title] = tool.title if tool.respond_to?(:title) && tool.title
+            if tool.respond_to?(:icons) && tool.icons&.any?
+              defn[:icons] = tool.icons
+            end
+            defn
           end
         end
 

@@ -27,7 +27,9 @@ handler = ->(request) {
   case method
   when "initialize"
     send_response(id, {
-      protocolVersion: "0.1.0",
+      # Mirrors Ask::MCP::PROTOCOL_VERSION — this script runs standalone as a
+      # subprocess, so it hardcodes the value instead of referencing the gem.
+      protocolVersion: "2025-06-18",
       capabilities: {
         tools: {},
         resources: {},

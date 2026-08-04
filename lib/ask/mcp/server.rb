@@ -43,9 +43,14 @@ module Ask
       # @param name [String] server name
       # @param tools [Array<#call, #name, #description, #params_schema>] tool instances to expose
       # @param capabilities [Hash] MCP capabilities (default: { tools: {} })
+      # @param resources [Hash{String => #to_h, #content}] uri → resource objects
+      # @param prompts [Hash{String => #to_h, #messages}] name → prompt objects
       # @param debug [Boolean] enable stderr debug logging
-      def self.start_stdio(name:, tools: [], capabilities: { tools: {} }, debug: false)
-        Stdio.new(name: name, tools: tools, capabilities: capabilities, debug: debug).start
+      def self.start_stdio(name:, tools: [], capabilities: { tools: {} }, resources: {},
+                            prompts: {}, resource_templates: {}, debug: false)
+        Stdio.new(name: name, tools: tools, capabilities: capabilities,
+                  resources: resources, prompts: prompts,
+                  resource_templates: resource_templates, debug: debug).start
       end
     end
   end

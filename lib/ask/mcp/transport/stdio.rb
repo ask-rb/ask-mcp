@@ -50,7 +50,7 @@ module Ask
           # Process already exited
         end
 
-        def send(message)
+        def send(message, _headers = {})
           data = message.is_a?(String) ? message : message.to_json
           @mutex.synchronize do
             @stdin&.puts(data)

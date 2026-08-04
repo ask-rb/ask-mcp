@@ -24,6 +24,9 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency "httpx", "~> 1.4"
   spec.add_dependency "json-schema", "~> 5.0"
+  # Ruby 3.4+ no longer ships base64 as a default gem; the Streamable HTTP
+  # transport uses it for Mcp-Name / Mcp-Param-* header value encoding.
+  spec.add_dependency "base64"
 
   spec.add_development_dependency "minitest", "~> 5.25"
   spec.add_development_dependency "mocha", "~> 3.1"

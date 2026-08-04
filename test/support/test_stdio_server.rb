@@ -9,6 +9,11 @@ require "json"
 class EchoTestTool
   def name; "echo" end
   def description; "Echo back a message" end
+  # 2025-11-25: optional display metadata (title + icons, SEP-973)
+  def title; "Echo Tool" end
+  def icons
+    [{ src: "https://example.com/echo-icon.png", mimeType: "image/png", sizes: ["48x48"] }]
+  end
   def params_schema
     { type: "object", properties: { message: { type: "string", description: "Message to echo" } }, required: ["message"] }
   end
@@ -85,6 +90,55 @@ class MultilineTestTool
   end
 end
 
+class GreetingResource
+  def uri; "greeting://world" end
+  def name; "World Greeting" end
+  def description; "A greeting for the world" end
+  def mime_type; "text/plain" end
+  # 2025-11-25: optional display metadata
+  def title; "World Greeting" end
+  def icons
+    [{ src: "https://example.com/world-icon.png", mimeType: "image/png", sizes: ["48x48"] }]
+  end
+  def content
+    [{ uri: uri, mimeType: mime_type, text: "Hello, World!" }]
+  end
+end
+
+class NoteResource
+  def uri; "note://scratch" end
+  def name; "Scratch Note" end
+  def description; "An empty scratch note" end
+  def mime_type; "text/plain" end
+  def content
+    [{ uri: uri, mimeType: mime_type, text: "" }]
+  end
+end
+
+class FileTemplate
+  def uri_template; "file:///{path}" end
+  def name; "Project Files" end
+  def title; "Project Files" end
+  def mime_type; "application/octet-stream" end
+  def to_h
+    h = { uriTemplate: uri_template, name: name }
+    h[:title] = title
+    h[:mimeType] = mime_type
+    h
+  end
+end
+
+class GreetPrompt
+  def name; "greet" end
+  def description; "Generate a greeting" end
+  def arguments
+    [{ name: "name", description: "Name to greet", required: true }]
+  end
+  def messages
+    [{ role: "user", content: { type: "text", text: "Greet the user" } }]
+  end
+end
+
 tools = [
   EchoTestTool.new,
   ReverseTestTool.new,
@@ -98,7 +152,17 @@ tools = [
 server = Ask::MCP::Server::Stdio.new(
   name: "test-stdio-server",
   tools: tools,
-  capabilities: { tools: {} },
+  resources: {
+    "greeting://world" => GreetingResource.new,
+    "note://scratch" => NoteResource.new
+  },
+  prompts: {
+    "greet" => GreetPrompt.new
+  },
+  resource_templates: {
+    "file:///{path}" => FileTemplate.new
+  },
+  capabilities: { tools: {}, resources: {}, prompts: {} },
   debug: ENV["DEBUG"] == "1"
 )
 server.start

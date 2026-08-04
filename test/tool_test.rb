@@ -65,6 +65,55 @@ class ToolTest < Minitest::Test
     assert_equal({}, tool.input_schema)
   end
 
+  def test_from_h_parses_title_and_icons
+    tool = Ask::MCP::Tool.from_h(
+      name: "weather",
+      title: "Weather",
+      description: "Weather lookup",
+      inputSchema: { type: "object" },
+      icons: [{ src: "https://example.com/icon.png", mimeType: "image/png", sizes: ["48x48"] }]
+    )
+    assert_equal "Weather", tool.title
+    assert_equal "https://example.com/icon.png", tool.icons.first[:src]
+  end
+
+  def test_from_h_parses_title_and_icons_with_string_keys
+    tool = Ask::MCP::Tool.from_h(
+      "name" => "weather",
+      "title" => "Weather",
+      "icons" => [{ "src" => "https://example.com/icon.png" }]
+    )
+    assert_equal "Weather", tool.title
+    # Icon entries are passed through verbatim (same as Prompt#arguments), so
+    # their keys keep the original style — string here, symbol on the wire
+    # (the parser symbolizes JSON keys).
+    assert_equal "https://example.com/icon.png", tool.icons.first["src"]
+  end
+
+  def test_to_h_includes_title_and_icons_when_present
+    tool = Ask::MCP::Tool.new(
+      name: "weather",
+      title: "Weather",
+      icons: [{ src: "https://example.com/icon.png", sizes: ["48x48"] }]
+    )
+    h = tool.to_h
+    assert_equal "Weather", h[:title]
+    assert_equal "https://example.com/icon.png", h[:icons].first[:src]
+  end
+
+  def test_to_h_omits_title_and_icons_when_absent
+    tool = Ask::MCP::Tool.new(name: "plain")
+    h = tool.to_h
+    refute h.key?(:title)
+    refute h.key?(:icons)
+  end
+
+  def test_default_title_and_icons
+    tool = Ask::MCP::Tool.new(name: "plain")
+    assert_nil tool.title
+    assert_equal [], tool.icons
+  end
+
   def test_equality
     t1 = Ask::MCP::Tool.new(name: "test", description: "desc", input_schema: { type: "object" })
     t2 = Ask::MCP::Tool.new(name: "test", description: "desc", input_schema: { type: "object" })

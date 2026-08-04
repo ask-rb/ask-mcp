@@ -62,13 +62,17 @@ class StdioTransportTest < Minitest::Test
 
   def test_spawn_and_communicate
     Timeout.timeout(2) do
-      transport = Ask::MCP::Transport::Stdio.new("echo", ['{"jsonrpc":"2.0","id":1,"result":{}}'])
+      # `cat` echoes stdin back to stdout, so this is a genuine round-trip:
+      # what we send must come back parsed as a message.
+      transport = Ask::MCP::Transport::Stdio.new("cat", [])
       messages = []
       transport.on_message { |msg| messages << msg }
       transport.start
-      sleep 0.15
+      req = Ask::MCP::Native::Messages::Request.new(method: "initialize", id: 1)
+      transport.send(req)
+      wait_until(timeout: 1.5) { messages.any? }
       transport.stop
-      assert messages.any? || true
+      assert messages.any?, "Expected the subprocess to echo the message back"
     end
   rescue Timeout::Error
     skip "spawn test timed out"

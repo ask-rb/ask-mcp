@@ -59,6 +59,21 @@ class MCPServerHarness
   def read_response(timeout: TIMEOUT)
     Timeout.timeout(timeout) do
       loop do
+        parsed = read_message(timeout: timeout)
+        return nil if parsed.nil?
+        return parsed if parsed.key?(:id)
+        # Notifications (no id) are skipped — the caller asked for a response.
+      end
+    end
+  rescue Timeout::Error
+    raise "Timeout waiting for response after #{timeout}s\nBuffer: #{@buffer.inspect}"
+  end
+
+  # Read the next JSON-RPC message (request, response, or notification)
+  # regardless of whether it carries an id. Returns nil on EOF.
+  def read_message(timeout: TIMEOUT)
+    Timeout.timeout(timeout) do
+      loop do
         char = @stdout.getc
         return nil if char.nil?
         @buffer << char
@@ -67,20 +82,17 @@ class MCPServerHarness
           @buffer = +""
           next if line.empty?
 
-          parsed = JSON.parse(line, symbolize_names: true)
-          if parsed.key?(:id)
-            return parsed
-          end
+          return JSON.parse(line, symbolize_names: true)
         end
       end
     end
   rescue Timeout::Error
-    raise "Timeout waiting for response after #{timeout}s\nBuffer: #{@buffer.inspect}"
+    raise "Timeout waiting for message after #{timeout}s\nBuffer: #{@buffer.inspect}"
   end
 
   def initialize_session
     send_request("initialize", {
-      protocolVersion: "0.1.0",
+      protocolVersion: Ask::MCP::PROTOCOL_VERSION,
       capabilities: {},
       clientInfo: { name: "test-client", version: "1.0" }
     })

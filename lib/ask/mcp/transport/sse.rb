@@ -3,6 +3,10 @@
 module Ask
   module MCP
     module Transport
+      # HTTP+SSE transport (2024-11-05). DEPRECATED since 2025-03-26 and
+      # reclassified as Deprecated under the MCP feature lifecycle in
+      # 2026-07-28 (SEP-2596). Keep working for legacy servers; new
+      # integrations should use StreamableHTTP instead.
       class SSE
         attr_reader :url
 
@@ -42,7 +46,7 @@ module Ask
           @http&.close
         end
 
-        def send(message)
+        def send(message, _headers = {})
           require "httpx"
 
           data = message.is_a?(String) ? message : message.to_json

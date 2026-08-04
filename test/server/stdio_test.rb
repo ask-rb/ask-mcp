@@ -46,6 +46,29 @@ class ServerStdioTest < Minitest::Test
     assert_nil result, "Notification should not produce a response"
   end
 
+  def test_initialize_echoes_client_protocol_version
+    @harness.send_request("initialize", {
+      protocolVersion: "2025-11-25",
+      capabilities: {},
+      clientInfo: { name: "test", version: "1.0" }
+    })
+    resp = @harness.read_response
+    assert resp[:result], "initialize should succeed"
+    assert_equal "2025-11-25", resp[:result][:protocolVersion]
+  end
+
+  def test_initialize_defaults_to_canonical_protocol_version
+    # A client that omits protocolVersion must get the server's default.
+    @harness.send_request("initialize", {
+      capabilities: {},
+      clientInfo: { name: "test", version: "1.0" }
+    })
+    resp = @harness.read_response
+    assert resp[:result], "initialize should succeed"
+    assert_equal Ask::MCP::PROTOCOL_VERSION, resp[:result][:protocolVersion]
+    assert_equal "2025-06-18", resp[:result][:protocolVersion]
+  end
+
   def test_tools_list_before_initialize_returns_error
     @harness.send_request("tools/list")
     resp = @harness.read_response
@@ -73,6 +96,203 @@ class ServerStdioTest < Minitest::Test
     props = echo_def[:inputSchema][:properties]
     assert props.key?("message") || props.key?(:message),
            "echo should have message param"
+  end
+
+  def test_tools_list_includes_title_and_icons
+    @harness.initialize_session
+    resp = @harness.list_tools
+    echo_def = resp[:result][:tools].find { |t| t[:name] == "echo" }
+    refute_nil echo_def, "expected echo tool in tools/list"
+    assert_equal "Echo Tool", echo_def[:title]
+    assert_equal "https://example.com/echo-icon.png", echo_def[:icons].first[:src]
+  end
+
+  # --- Resources ---
+
+  def test_resources_list_after_initialize
+    @harness.initialize_session
+    @harness.send_request("resources/list")
+    resp = @harness.read_response
+    assert resp[:result], "Expected resources list, got: #{resp[:error]}"
+    resources = resp[:result][:resources]
+    assert_kind_of Array, resources
+    uris = resources.map { |r| r[:uri] }
+    assert_includes uris, "greeting://world"
+    assert_includes uris, "note://scratch"
+  end
+
+  def test_resources_list_includes_title_and_icons
+    @harness.initialize_session
+    @harness.send_request("resources/list")
+    resp = @harness.read_response
+    world = resp[:result][:resources].find { |r| r[:uri] == "greeting://world" }
+    refute_nil world, "expected greeting://world in resources/list"
+    assert_equal "World Greeting", world[:title]
+    assert_equal "text/plain", world[:mimeType]
+    assert_equal "https://example.com/world-icon.png", world[:icons].first[:src]
+  end
+
+  def test_resources_list_before_initialize_returns_error
+    @harness.send_request("resources/list")
+    resp = @harness.read_response
+    assert resp[:error], "Expected error before initialize"
+  end
+
+  def test_resource_read_returns_content
+    @harness.initialize_session
+    @harness.send_request("resources/read", { uri: "greeting://world" })
+    resp = @harness.read_response
+    assert resp[:result], "Expected content, got: #{resp[:error]}"
+    contents = resp[:result][:contents]
+    assert_equal "Hello, World!", contents.first[:text]
+    assert_equal "text/plain", contents.first[:mimeType]
+  end
+
+  def test_resource_read_unknown_returns_error
+    @harness.initialize_session
+    @harness.send_request("resources/read", { uri: "file:///nope" })
+    resp = @harness.read_response
+    assert resp[:error], "Expected error for unknown resource"
+    assert_equal(-32001, resp[:error][:code])
+  end
+
+  def test_resources_templates_list
+    @harness.initialize_session
+    @harness.send_request("resources/templates/list")
+    resp = @harness.read_response
+    assert resp[:result], "Expected templates, got: #{resp[:error]}"
+    templates = resp[:result][:resourceTemplates]
+    assert_equal "file:///{path}", templates.first[:uriTemplate]
+  end
+
+  # --- Prompts ---
+
+  def test_prompts_list_after_initialize
+    @harness.initialize_session
+    @harness.send_request("prompts/list")
+    resp = @harness.read_response
+    assert resp[:result], "Expected prompts list, got: #{resp[:error]}"
+    names = resp[:result][:prompts].map { |p| p[:name] }
+    assert_includes names, "greet"
+  end
+
+  def test_prompt_get_returns_messages
+    @harness.initialize_session
+    @harness.send_request("prompts/get", { name: "greet" })
+    resp = @harness.read_response
+    assert resp[:result], "Expected prompt messages, got: #{resp[:error]}"
+    messages = resp[:result][:messages]
+    assert_equal "user", messages.first[:role]
+    assert_equal "text", messages.first[:content][:type]
+  end
+
+  def test_prompt_get_unknown_returns_error
+    @harness.initialize_session
+    @harness.send_request("prompts/get", { name: "missing" })
+    resp = @harness.read_response
+    assert resp[:error], "Expected error for unknown prompt"
+    assert_equal(-32002, resp[:error][:code])
+  end
+
+  # --- 2026-07-28 stateless protocol ---
+
+  def test_server_discover_returns_supported_versions
+    @harness.send_request("server/discover")
+    resp = @harness.read_response
+    assert resp[:result], "Expected discover result, got: #{resp[:error]}"
+    versions = resp[:result][:protocolVersions]
+    assert_includes versions, "2025-06-18"
+    assert_includes versions, "2025-11-25"
+    assert_includes versions, "2026-07-28"
+    assert_equal "test-stdio-server", resp[:result][:serverInfo][:name]
+    assert resp[:result][:capabilities][:tools]
+  end
+
+  def test_stateless_request_works_without_initialize
+    @harness.send_request("tools/list", {
+      _meta: { "io.modelcontextprotocol/protocolVersion" => "2026-07-28" }
+    })
+    resp = @harness.read_response
+    assert resp[:result], "stateless tools/list should succeed"
+    assert_equal "complete", resp[:result][:resultType]
+  end
+
+  def test_stateless_request_can_read_resources
+    @harness.send_request("resources/read", {
+      uri: "greeting://world",
+      _meta: { "io.modelcontextprotocol/protocolVersion" => "2026-07-28" }
+    })
+    resp = @harness.read_response
+    assert resp[:result], "stateless resources/read should succeed"
+    assert_equal "Hello, World!", resp[:result][:contents].first[:text]
+    assert_equal "complete", resp[:result][:resultType]
+  end
+
+  def test_legacy_results_have_no_result_type
+    @harness.initialize_session
+    resp = @harness.list_tools
+    assert resp[:result]
+    refute resp[:result].key?(:resultType)
+  end
+
+  def test_ping_removed_in_stateless_mode
+    @harness.send_request("ping", {
+      _meta: { "io.modelcontextprotocol/protocolVersion" => "2026-07-28" }
+    })
+    resp = @harness.read_response
+    assert resp[:error], "ping must be removed for 2026-07-28 peers"
+    assert_equal(-32_601, resp[:error][:code])
+  end
+
+  def test_ping_still_supported_for_legacy_clients
+    @harness.initialize_session
+    @harness.send_request("ping")
+    resp = @harness.read_response
+    assert resp[:result]
+  end
+
+  def test_resource_not_found_code_differs_by_mode
+    # Legacy (2025-06-18) → -32001
+    @harness.initialize_session
+    @harness.send_request("resources/read", { uri: "file:///nope" })
+    resp = @harness.read_response
+    assert_equal(-32_001, resp[:error][:code])
+
+    # Stateless (2026-07-28) → -32602 per the error-code renumbering
+    @harness.send_request("resources/read", {
+      uri: "file:///nope",
+      _meta: { "io.modelcontextprotocol/protocolVersion" => "2026-07-28" }
+    })
+    resp = @harness.read_response
+    assert_equal(-32_602, resp[:error][:code])
+  end
+
+  def test_stateless_list_results_carry_cache_hints
+    @harness.send_request("tools/list", {
+      _meta: { "io.modelcontextprotocol/protocolVersion" => "2026-07-28" }
+    })
+    resp = @harness.read_response
+    assert resp[:result], "stateless tools/list should succeed"
+    assert_equal "complete", resp[:result][:resultType]
+    assert resp[:result][:ttlMs].is_a?(Integer), "stateless results carry ttlMs"
+    assert_equal "private", resp[:result][:cacheScope]
+  end
+
+  def test_legacy_list_results_have_no_cache_hints
+    @harness.initialize_session
+    resp = @harness.list_tools
+    refute resp[:result].key?(:resultType)
+    refute resp[:result].key?(:ttlMs)
+    refute resp[:result].key?(:cacheScope)
+  end
+
+  def test_tools_list_order_is_deterministic
+    @harness.initialize_session
+    first = @harness.list_tools[:result][:tools].map { |t| t[:name] }
+    second = @harness.list_tools[:result][:tools].map { |t| t[:name] }
+    assert_equal first, second, "tools/list order must be stable for client caching"
+    # Matches the definition order in the test server.
+    assert_equal %w[echo reverse fail noop add slow multiline], first
   end
 
   # --- Tool calling ---
@@ -208,13 +428,13 @@ class ServerStdioTest < Minitest::Test
 
     Process.kill("TERM", pid)
 
-    begin
-      Timeout.timeout(3) do
-        @harness.wait_thr.value
-      end
-    rescue Timeout::Error
+    # Poll instead of a hard timeout: under a loaded machine (CI running many
+    # suites in parallel) the trap handler can take a while to unwind.
+    exited = wait_until(timeout: 6) { !@harness.wait_thr.alive? }
+    unless exited
       Process.kill("KILL", pid) rescue nil
-      flunk "Server did not exit within 3s of SIGTERM"
+      @harness.wait_thr.value
+      flunk "Server did not exit within 6s of SIGTERM (stderr: #{@harness.stderr_output.inspect})"
     end
 
     refute @harness.wait_thr.alive?, "Server should have exited after SIGTERM"

@@ -133,13 +133,20 @@ module Ask
           INVALID_PARAMS   = -32602
           INTERNAL_ERROR   = -32603
 
-          # MCP-specific error codes
+          # MCP-specific error codes (legacy, 2025-06-18 and earlier)
           TOOL_NOT_FOUND      = -32000
           RESOURCE_NOT_FOUND  = -32001
           PROMPT_NOT_FOUND    = -32002
           AUTH_ERROR          = -32003
           CONNECTION_ERROR    = -32004
           TIMEOUT_ERROR       = -32005
+
+          # 2026-07-28: the -32020..-32099 range is reserved for the MCP
+          # specification (error code allocation policy); older codes were
+          # renumbered.
+          HEADER_MISMATCH                 = -32020
+          MISSING_REQUIRED_CLIENT_CAPABILITY = -32021
+          UNSUPPORTED_PROTOCOL_VERSION    = -32022
 
           ERROR_MESSAGES = {
             PARSE_ERROR      => "Parse error",
@@ -152,8 +159,22 @@ module Ask
             PROMPT_NOT_FOUND => "Prompt not found",
             AUTH_ERROR       => "Authentication error",
             CONNECTION_ERROR => "Connection error",
-            TIMEOUT_ERROR    => "Timeout error"
+            TIMEOUT_ERROR    => "Timeout error",
+            HEADER_MISMATCH  => "Header mismatch",
+            MISSING_REQUIRED_CLIENT_CAPABILITY => "Missing required client capability",
+            UNSUPPORTED_PROTOCOL_VERSION => "Unsupported protocol version"
           }.freeze
+        end
+
+        # Reserved `_meta` keys for the stateless protocol (2026-07-28).
+        # Keys are namespaced strings; note the JSON parser symbolizes all
+        # keys, so lookups must try both the string and symbol forms.
+        module Meta
+          PROTOCOL_VERSION_KEY    = "io.modelcontextprotocol/protocolVersion"
+          CLIENT_CAPABILITIES_KEY = "io.modelcontextprotocol/clientCapabilities"
+          CLIENT_INFO_KEY         = "io.modelcontextprotocol/clientInfo"
+          SERVER_INFO_KEY         = "io.modelcontextprotocol/serverInfo"
+          LOG_LEVEL_KEY           = "io.modelcontextprotocol/logLevel"
         end
       end
     end

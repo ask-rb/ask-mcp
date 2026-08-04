@@ -4,12 +4,26 @@ require_relative "mcp/version"
 
 module Ask
   module MCP
+    # The MCP protocol revision this gem implements and advertises.
+    # Single source of truth — Client and Server::Stdio both reference this
+    # so the advertised version can never drift between the two sides.
+    #
+    # `PROTOCOL_VERSION` is the legacy default (stateful `initialize`
+    # handshake). `SUPPORTED_PROTOCOL_VERSIONS` is what the server advertises
+    # via `server/discover`; `LATEST_PROTOCOL_VERSION` is the stateless
+    # 2026-07-28 revision that clients and servers negotiate to.
+    PROTOCOL_VERSION = "2025-06-18"
+    LATEST_PROTOCOL_VERSION = "2026-07-28"
+    SUPPORTED_PROTOCOL_VERSIONS = [PROTOCOL_VERSION, "2025-11-25", LATEST_PROTOCOL_VERSION].freeze
+
     autoload :Client, "ask/mcp/client"
     autoload :Server, "ask/mcp/server"
     autoload :Tool, "ask/mcp/tool"
     autoload :Resource, "ask/mcp/resource"
     autoload :Prompt, "ask/mcp/prompt"
     autoload :Validator, "ask/mcp/validator"
+    autoload :XMcpHeader, "ask/mcp/x_mcp_header"
+    autoload :TraceContext, "ask/mcp/trace_context"
 
     module Native
       autoload :Messages, "ask/mcp/native/messages"
@@ -24,6 +38,7 @@ module Ask
     module Auth
       autoload :OAuth, "ask/mcp/auth/oauth"
       autoload :Token, "ask/mcp/auth/token"
+      autoload :ClientIdMetadataDocument, "ask/mcp/auth/client_id_metadata_document"
     end
 
     module Adapters

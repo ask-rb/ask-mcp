@@ -31,4 +31,37 @@ class AdaptersTest < Minitest::Test
     assert_instance_of Ask::MCP::Adapters::AskTool, wrapped["a"]
     assert_equal "Tool A", wrapped["a"].description
   end
+
+  # --- ToolServer definitions: optional title/icons pass-through ---
+
+  class DuckToolWithMetadata
+    def name = "weather"
+    def description = "Weather lookup"
+    def params_schema = { type: "object", properties: {}, required: [] }
+    def title = "Weather"
+    def icons = [{ src: "https://example.com/icon.png", mimeType: "image/png" }]
+    def call(args) = "sunny"
+  end
+
+  class DuckToolPlain
+    def name = "plain"
+    def description = "Plain tool"
+    def params_schema = { type: "object" }
+    def call(args) = "ok"
+  end
+
+  def test_tool_server_definitions_include_title_and_icons_when_provided
+    adapter = Ask::MCP::Adapters::ToolServer.new([DuckToolWithMetadata.new])
+    defn = adapter.definitions.first
+    assert_equal "weather", defn[:name]
+    assert_equal "Weather", defn[:title]
+    assert_equal "https://example.com/icon.png", defn[:icons].first[:src]
+  end
+
+  def test_tool_server_definitions_omit_title_and_icons_when_absent
+    adapter = Ask::MCP::Adapters::ToolServer.new([DuckToolPlain.new])
+    defn = adapter.definitions.first
+    refute defn.key?(:title)
+    refute defn.key?(:icons)
+  end
 end
