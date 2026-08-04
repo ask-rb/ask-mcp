@@ -28,7 +28,20 @@ class ServerStdioTest < Minitest::Test
     resp = @harness.initialize_session
     assert resp[:result], "Expected initialize result, got: #{resp[:error]}"
     assert_equal "test-stdio-server", resp[:result][:serverInfo][:name]
+    assert_equal Ask::MCP::VERSION, resp[:result][:serverInfo][:version],
+                 "serverInfo should report the ask-mcp version by default"
     assert resp[:result][:capabilities][:tools], "Expected tools capability"
+  end
+
+  def test_server_reports_custom_version
+    harness = MCPServerHarness.new("ruby", [server_script], env: { "SERVER_VERSION" => "9.9.9" })
+    harness.start
+    resp = harness.initialize_session
+    assert resp[:result], "Expected initialize result, got: #{resp[:error]}"
+    assert_equal "9.9.9", resp[:result][:serverInfo][:version],
+                 "serverInfo should report the server's own version when passed"
+  ensure
+    harness&.stop
   end
 
   def test_notifications_initialized_produces_no_response

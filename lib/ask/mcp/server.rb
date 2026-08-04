@@ -41,14 +41,16 @@ module Ask
       # Blocking — designed to be the last line of an entry-point script.
       #
       # @param name [String] server name
+      # @param version [String, nil] server version reported in serverInfo;
+      #   defaults to the ask-mcp version when nil
       # @param tools [Array<#call, #name, #description, #params_schema>] tool instances to expose
       # @param capabilities [Hash] MCP capabilities (default: { tools: {} })
       # @param resources [Hash{String => #to_h, #content}] uri → resource objects
       # @param prompts [Hash{String => #to_h, #messages}] name → prompt objects
       # @param debug [Boolean] enable stderr debug logging
-      def self.start_stdio(name:, tools: [], capabilities: { tools: {} }, resources: {},
+      def self.start_stdio(name:, version: nil, tools: [], capabilities: { tools: {} }, resources: {},
                             prompts: {}, resource_templates: {}, debug: false)
-        Stdio.new(name: name, tools: tools, capabilities: capabilities,
+        Stdio.new(name: name, version: version, tools: tools, capabilities: capabilities,
                   resources: resources, prompts: prompts,
                   resource_templates: resource_templates, debug: debug).start
       end

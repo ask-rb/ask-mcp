@@ -151,6 +151,8 @@ tools = [
 
 server = Ask::MCP::Server::Stdio.new(
   name: "test-stdio-server",
+  # SERVER_VERSION exercises the serverInfo version passthrough.
+  version: ENV["SERVER_VERSION"],
   tools: tools,
   resources: {
     "greeting://world" => GreetingResource.new,

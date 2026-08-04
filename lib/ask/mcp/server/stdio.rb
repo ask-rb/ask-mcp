@@ -16,8 +16,9 @@ module Ask
 
         def initialize(name:, tools: [], capabilities: {}, resources: {}, prompts: {},
                        resource_templates: {}, debug: false, tool_timeout: nil,
-                       cache_ttl_ms: 60_000, cache_scope: "private")
+                       cache_ttl_ms: 60_000, cache_scope: "private", version: nil)
           @name = name
+          @server_version = version || Ask::MCP::VERSION
           @capabilities = capabilities
           @resources = resources
           @prompts = prompts
@@ -173,7 +174,7 @@ module Ask
           send_result(id, {
             protocolVersions: Ask::MCP::SUPPORTED_PROTOCOL_VERSIONS,
             capabilities: @capabilities,
-            serverInfo: { name: @name, version: Ask::MCP::VERSION }
+            serverInfo: { name: @name, version: @server_version }
           })
           debug_log "server/discover answered"
         end
@@ -188,7 +189,7 @@ module Ask
             capabilities: @capabilities,
             serverInfo: {
               name: @name,
-              version: Ask::MCP::VERSION
+              version: @server_version
             }
           })
           debug_log "Initialize complete"

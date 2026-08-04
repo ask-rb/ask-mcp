@@ -1,3 +1,14 @@
+## [0.4.3] - 2026-08-04
+
+### Added
+
+- **serverInfo version passthrough** — `Ask::MCP::Server.start_stdio` and
+  `Ask::MCP::Server::Stdio.new` accept a `version:` option reported in the
+  `serverInfo` of both the legacy `initialize` handshake and
+  `server/discover`. Defaults to the ask-mcp version when omitted, so
+  wrapper servers (ask-web-search-mcp, ask-web-fetch-mcp) can advertise
+  their own gem version instead of ask-mcp's.
+
 ## [0.4.2] - 2026-08-04
 
 ### Added
