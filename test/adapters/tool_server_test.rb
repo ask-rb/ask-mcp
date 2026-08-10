@@ -149,6 +149,41 @@ class ToolServerTest < Minitest::Test
     assert result[:content].first[:text].include?("data")
   end
 
+  def test_call_with_non_string_summary_json_serializes
+    # Regression: a Hash :summary (e.g. schema_graph's summary key) used to be
+    # emitted as the content `text`, producing a non-string content item that
+    # MCP clients reject. It must be JSON-serialized instead.
+    tool = Class.new do
+      def name; "graphy" end
+      def description; "" end
+      def params_schema; nil end
+      def call(args = {})
+        OpenStruct.new(ok?: true, output: { summary: { model_count: 12 }, detail: "stuff" }, error_message: nil, ok: true)
+      end
+    end
+    adapter = Ask::MCP::Adapters::ToolServer.new([tool.new])
+    result = adapter.call("graphy", {})
+    text = result[:content].first[:text]
+    assert_instance_of String, text, "content text must be a String"
+    assert_includes text, "model_count"
+  end
+
+  def test_plain_hash_result_with_non_string_summary_json_serializes
+    tool = Class.new do
+      def name; "plain" end
+      def description; "" end
+      def params_schema; nil end
+      def call(args = {})
+        { summary: { n: 1 }, extra: true }
+      end
+    end
+    adapter = Ask::MCP::Adapters::ToolServer.new([tool.new])
+    result = adapter.call("plain", {})
+    text = result[:content].first[:text]
+    assert_instance_of String, text
+    assert_includes text, "\"n\":1"
+  end
+
   def test_arguments_are_stringified
     tool = Class.new do
       attr_reader :received_args

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "json"
+
 module Ask
   module MCP
     module Adapters
@@ -69,14 +71,24 @@ module Ask
             return error_result(result.respond_to?(:error_message) ? result.error_message : result.to_s)
           end
 
-          # Everything else — treat as success
-          text = result.is_a?(Hash) ? (result[:summary] || result.to_s) : result.to_s
+          # Everything else — treat as success. Hashes are JSON-serialized so
+          # the content text is always a String (MCP content items require
+          # string `text`). A String `:summary` is honored as a shorthand.
+          text = if result.is_a?(Hash)
+                   result[:summary].is_a?(String) ? result[:summary] : JSON.generate(result)
+                 else
+                   result.to_s
+                 end
           { content: [{ type: "text", text: text }], isError: false }
         end
 
         def success_result(result, _ok)
           output = result.respond_to?(:output) ? result.output : result.to_s
-          text = output.is_a?(Hash) ? (output[:summary] || output.to_s) : output.to_s
+          text = if output.is_a?(Hash)
+                   output[:summary].is_a?(String) ? output[:summary] : JSON.generate(output)
+                 else
+                   output.to_s
+                 end
           { content: [{ type: "text", text: text }], isError: false }
         end
 

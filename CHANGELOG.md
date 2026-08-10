@@ -1,3 +1,15 @@
+## [0.4.4] - 2026-08-10
+
+### Fixed
+
+- **Hash tool results are JSON-serialized instead of emitted raw** —
+  `ToolServer#wrap_result`/`success_result` used `result[:summary]` as the
+  content `text` whenever a Hash result had a `summary` key. When `summary`
+  was itself a Hash (e.g. `schema_graph`'s summary), the server emitted a
+  non-string content item that spec-compliant MCP clients reject. String
+  `summary` values are still honored as a shorthand; any other Hash result is
+  `JSON.generate`d so `text` is always a String.
+
 ## [0.4.3] - 2026-08-04
 
 ### Added
