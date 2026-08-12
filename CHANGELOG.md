@@ -1,3 +1,14 @@
+## [0.4.5] - 2026-08-12
+
+### Added
+
+- **`structuredContent` mirroring in ToolServer results** — success results
+  now include a machine-readable `structuredContent` field (MCP 2025-06-18)
+  populated from the JSON text when it parses to an object or array. MCP
+  clients that render structured views (e.g. ZCode's "Structured content"
+  section) now display the parsed result instead of an empty block. Plain
+  text and `:summary` shorthand outputs are unaffected.
+
 ## [0.4.4] - 2026-08-10
 
 ### Fixed

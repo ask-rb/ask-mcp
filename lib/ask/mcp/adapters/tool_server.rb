@@ -61,7 +61,7 @@ module Ask
         def wrap_result(result)
           # Plain strings are always a success
           if result.is_a?(String)
-            return { content: [{ type: "text", text: result }], isError: false }
+            return text_result(result)
           end
 
           # Result-like objects (Ask::Result, OpenStruct, etc.)
@@ -79,7 +79,7 @@ module Ask
                  else
                    result.to_s
                  end
-          { content: [{ type: "text", text: text }], isError: false }
+          text_result(text)
         end
 
         def success_result(result, _ok)
@@ -89,11 +89,27 @@ module Ask
                  else
                    output.to_s
                  end
-          { content: [{ type: "text", text: text }], isError: false }
+          text_result(text)
         end
 
         def error_result(message)
           { content: [{ type: "text", text: "Error: #{message}" }], isError: true }
+        end
+
+        # Builds a success result. Mirrors JSON text into `structuredContent`
+        # (MCP 2025-06-18) when it parses, so clients can render a structured
+        # view instead of an empty section.
+        def text_result(text)
+          { content: [{ type: "text", text: text }], isError: false }.merge(structured_content_for(text))
+        end
+
+        def structured_content_for(text)
+          parsed = JSON.parse(text)
+          return {} unless parsed.is_a?(Hash) || parsed.is_a?(Array)
+
+          { structuredContent: parsed }
+        rescue JSON::ParserError
+          {}
         end
 
         def deep_stringify_keys(obj)

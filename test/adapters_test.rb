@@ -64,4 +64,55 @@ class AdaptersTest < Minitest::Test
     refute defn.key?(:title)
     refute defn.key?(:icons)
   end
+
+  # --- ToolServer results: structuredContent mirroring ---
+
+  class DuckToolHash
+    def name = "hash_tool"
+    def description = "Returns a hash"
+    def params_schema = { type: "object" }
+    def call(args) = { "columns" => ["user_count"], "rows" => [{ "user_count" => 2 }] }
+  end
+
+  class DuckToolSummary
+    def name = "summary_tool"
+    def description = "Returns a summary string"
+    def params_schema = { type: "object" }
+    def call(args) = { summary: "Done in 1.2s" }
+  end
+
+  class DuckToolJsonString
+    def name = "json_string_tool"
+    def description = "Returns a JSON string"
+    def params_schema = { type: "object" }
+    def call(args) = '{"ok":true}'
+  end
+
+  def test_tool_server_call_mirrors_json_into_structured_content
+    adapter = Ask::MCP::Adapters::ToolServer.new([DuckToolHash.new])
+    result = adapter.call("hash_tool", {})
+    assert_equal [{ type: "text", text: '{"columns":["user_count"],"rows":[{"user_count":2}]}' }], result[:content]
+    assert_equal({ "columns" => ["user_count"], "rows" => [{ "user_count" => 2 }] }, result[:structuredContent])
+    refute result[:isError]
+  end
+
+  def test_tool_server_call_omits_structured_content_for_non_json_text
+    adapter = Ask::MCP::Adapters::ToolServer.new([DuckToolPlain.new])
+    result = adapter.call("plain", {})
+    assert_equal "ok", result[:content].first[:text]
+    refute result.key?(:structuredContent)
+  end
+
+  def test_tool_server_call_mirrors_json_strings_too
+    adapter = Ask::MCP::Adapters::ToolServer.new([DuckToolJsonString.new])
+    result = adapter.call("json_string_tool", {})
+    assert_equal({ "ok" => true }, result[:structuredContent])
+  end
+
+  def test_tool_server_call_summary_shorthand_has_no_structured_content
+    adapter = Ask::MCP::Adapters::ToolServer.new([DuckToolSummary.new])
+    result = adapter.call("summary_tool", {})
+    assert_equal "Done in 1.2s", result[:content].first[:text]
+    refute result.key?(:structuredContent)
+  end
 end
