@@ -236,3 +236,40 @@ class ToolServerStringResultTest < Minitest::Test
     assert_equal "3.14159", result[:content].first[:text]
   end
 end
+
+class ToolServerSchemaValidationTest < Minitest::Test
+  class GreetTool
+    def name; "greet" end
+    def description; "Greets a user" end
+    def params_schema
+      { "type" => "object", "properties" => { "name" => { "type" => "string" } }, "required" => ["name"] }
+    end
+    def call(args = {})
+      OpenStruct.new(ok?: true, output: "Hi #{args['name']}", error_message: nil, ok: true)
+    end
+  end
+
+  def setup
+    @adapter = Ask::MCP::Adapters::ToolServer.new([GreetTool.new])
+  end
+
+  def test_unknown_parameter_is_rejected_with_a_clear_message
+    result = @adapter.call("greet", { "name" => "World", "prompt" => "whatever" })
+
+    assert_equal true, result[:isError]
+    text = result[:content].first[:text]
+    assert_includes text, "Unknown parameter(s) prompt"
+  end
+
+  def test_unknown_parameter_names_the_accepted_set
+    result = @adapter.call("greet", { "name" => "World", "prompt" => "whatever" })
+    assert_includes result[:content].first[:text], "Expected: name"
+  end
+
+  def test_missing_required_parameter_is_rejected
+    result = @adapter.call("greet", {})
+
+    assert_equal true, result[:isError]
+    assert_includes result[:content].first[:text], "Missing required parameter(s) for greet: name"
+  end
+end

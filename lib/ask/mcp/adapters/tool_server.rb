@@ -47,6 +47,9 @@ module Ask
           end
 
           normalized = deep_stringify_keys(arguments)
+          violation = schema_violation(tool, normalized)
+          return error_result(violation) if violation
+
           result = tool.call(normalized)
           wrap_result(result)
         rescue StandardError => e
@@ -57,6 +60,30 @@ module Ask
         end
 
         private
+
+        # Rejects arguments that don't match the tool's declared schema with
+        # a clear message — an unknown or missing parameter surfaces as such
+        # instead of leaking a raw ArgumentError from deep inside the tool.
+        # A tool that declares no schema (or no properties) accepts anything,
+        # preserving the duck-typed behavior for minimal tools.
+        def schema_violation(tool, args)
+          schema = tool.params_schema
+          return nil if schema.nil? || schema.empty?
+
+          properties = schema["properties"] || schema[:properties] || {}
+          allowed = properties.keys.map(&:to_s)
+          return nil if allowed.empty?
+
+          required = Array(schema["required"] || schema[:required]).map(&:to_s)
+
+          missing = required - args.keys
+          return "Missing required parameter(s) for #{tool.name}: #{missing.join(", ")}" if missing.any?
+
+          extra = args.keys - allowed
+          return "Unknown parameter(s) #{extra.join(", ")} for #{tool.name}. Expected: #{allowed.join(", ")}" if extra.any?
+
+          nil
+        end
 
         def wrap_result(result)
           # Plain strings are always a success
