@@ -161,8 +161,23 @@ module Ask
         @transport.protocol_version = @protocol_version if @transport.respond_to?(:protocol_version=)
       end
 
+      # Probe the server as a *modern* request. A compliant 2026-07-28 server
+      # requires MCP-Protocol-Version and `_meta` on every request and refuses
+      # anything else, so the probe has to name a version before negotiation
+      # has happened. A version the server does not implement comes back as an
+      # UnsupportedProtocolVersionError naming the ones it does; retry once
+      # with the best of those. Answers false for a server that is not modern,
+      # which is the caller's cue to fall back to `initialize`.
       def discover_server
-        response = send_request_raw("server/discover", {}, timeout: 5)
+        response = probe_discover(Ask::MCP::SUPPORTED_PROTOCOL_VERSIONS.last)
+
+        if unsupported_version?(response)
+          chosen = advertised_protocol_version(response)
+          return false unless chosen
+
+          response = probe_discover(chosen)
+        end
+
         return false unless response.success?
 
         result = response.result
@@ -179,15 +194,43 @@ module Ask
         false
       end
 
+      def probe_discover(version)
+        @transport.protocol_version = version if @transport.respond_to?(:protocol_version=)
+        request = Native::Messages::Request.new(
+          method: "server/discover", params: meta_params(version), id: next_id
+        )
+        wait_for_response(request, timeout: 5)
+      end
+
+      def unsupported_version?(response)
+        return false if response.success?
+
+        error_of(response)[:code] == Native::Messages::ErrorCodes::UNSUPPORTED_PROTOCOL_VERSION
+      end
+
+      def advertised_protocol_version(response)
+        data = error_of(response)[:data]
+        supported = Array(data[:supported] || data["supported"])
+        Ask::MCP::SUPPORTED_PROTOCOL_VERSIONS.reverse.find { |version| supported.include?(version) }
+      end
+
+      def error_of(response)
+        error = response.error
+        { code: error[:code] || error["code"], data: error[:data] || error["data"] || {} }
+      end
+
       def reset_caches
         @tools_cache = nil
         @resources_cache = nil
         @prompts_cache = nil
       end
 
-      def meta_params
+      # The `_meta` envelope every stateless request carries. `version` is
+      # overridable so the discover probe can name a version before any
+      # negotiation has happened.
+      def meta_params(version = @protocol_version)
         meta = {
-          Native::Messages::Meta::PROTOCOL_VERSION_KEY => @protocol_version,
+          Native::Messages::Meta::PROTOCOL_VERSION_KEY => version,
           Native::Messages::Meta::CLIENT_CAPABILITIES_KEY => @options[:client_capabilities] || {},
           Native::Messages::Meta::CLIENT_INFO_KEY => { name: "ask-mcp", version: Ask::MCP::VERSION }
         }

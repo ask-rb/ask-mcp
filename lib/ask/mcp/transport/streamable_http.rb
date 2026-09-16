@@ -138,26 +138,38 @@ module Ask
 
         def handle_response(response)
           status = response.status
-          if status == 202
-            # Notification accepted, no body.
-            return response
-          end
-          unless status == 200
-            raise ConnectionError, "HTTP #{status}: #{response.body.to_s[0..200]}"
-          end
+          # Notification accepted, no body.
+          return response if status == 202
 
           content_type = response.headers["content-type"].to_s
-          if content_type.include?("text/event-stream")
+          if status == 200 && content_type.include?("text/event-stream")
             read_sse_stream(response)
-          else
-            body = response.body.to_s
-            if body && !body.empty?
-              message = Native::Messages::Parser.parse(body)
-              @message_handlers.each { |handler| handler.call(message) }
-            end
+            return response
           end
 
-          response
+          body = response.body.to_s
+          # A server may carry a JSON-RPC error on a non-200 status — 400 for a
+          # header mismatch or an unsupported protocol version, 404 for a
+          # method it does not implement. That is a response, not a transport
+          # failure, so it goes to the message handlers where the pending
+          # request can pick it up.
+          message = parse_message(body)
+          if message
+            @message_handlers.each { |handler| handler.call(message) }
+            return response
+          end
+
+          return response if status == 200
+
+          raise ConnectionError, "HTTP #{status}: #{body[0..200]}"
+        end
+
+        def parse_message(body)
+          return nil if body.empty?
+
+          Native::Messages::Parser.parse(body)
+        rescue JSON::ParserError
+          nil
         end
 
         # Read an SSE stream, delivering each `data:` payload as a parsed

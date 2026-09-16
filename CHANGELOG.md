@@ -1,3 +1,72 @@
+## [0.5.0] - 2026-09-17
+
+### Added
+
+- **`Ask::MCP::Server::HTTP`, a Rack application serving MCP over the
+  stateless Streamable HTTP transport (2026-07-28)** — mount it wherever Rack
+  runs: `mount Ask::MCP::Server.rack_app(name: "anychat", tools: [...]) => "/mcp"`.
+  Every POST carries one JSON-RPC message and is answered with a single
+  `application/json` object; there are no sessions, no GET stream and no SSE
+  resumability, which is what the revision requires. The transport enforces
+  what the spec makes a server's job: `Origin` validation (403 for an origin
+  the host has not allowed), the required `MCP-Protocol-Version`, `Mcp-Method`
+  and `Mcp-Name` request headers validated against the body (400 with
+  `HeaderMismatch` -32020), the base64 sentinel form for header values that are
+  not plain ASCII, `UnsupportedProtocolVersionError` (-32022) listing the
+  versions it does support, 404 with -32601 for a method it does not implement,
+  202 for a notification, and 401 with `WWW-Authenticate` when `authenticate`
+  rejects a caller. `tools` may be a callable of the request context, which is
+  what lets a host expose a different tool set per caller.
+
+- **`Ask::MCP::Server::Core`, transport-agnostic message handling** — the
+  dispatch that used to live inside `Server::Stdio`, extracted so more than one
+  transport can share it. A Core turns one parsed message into the messages the
+  server wants to send and collects them in `#outbox`; `Stdio` overrides
+  `#deliver` to write to stdout as they are produced. Protocol state is
+  per-instance, so a stateless transport builds a Core per request.
+
+- **`serverInfo` in every stateless result's `_meta`** — servers SHOULD
+  identify themselves on each result so a client can attribute an answer
+  without a separate discovery round trip.
+
+### Changed
+
+- **`Ask::MCP::Server::Stdio` is now a thin subclass of `Core`** — the read
+  loop, the stdout writer and the `notify_*` methods remain. Wire behaviour is
+  unchanged; the init gate is now stated once instead of on each gated method.
+
+- **The client negotiates stateless servers correctly** — `server/discover` is
+  now sent as a *modern* request, carrying `MCP-Protocol-Version` and `_meta`,
+  because a compliant 2026-07-28 server refuses anything else. A version the
+  server does not implement comes back as `UnsupportedProtocolVersionError`;
+  the client retries once with the best version the server advertises instead
+  of falling back to the `initialize` handshake the revision removed.
+
+- **A JSON-RPC error on a non-200 response is delivered as a response, not
+  raised as a transport failure** — the spec has servers carry errors on 400
+  (header mismatch, unsupported version) and 404 (unknown method), so
+  `Transport::StreamableHTTP` surfaces those to the message handlers where the
+  pending request can pick them up. `ConnectionError` is reserved for responses
+  that are not JSON-RPC at all.
+
+### Fixed
+
+- **A server rejection now echoes the request id** — request-level errors
+  (header mismatch, unsupported version) carry the id of the request that
+  caused them, so a client can correlate a failure with what it sent. Errors
+  raised before the body is understood, and the 403 for an untrusted `Origin`,
+  carry no id, which the spec allows.
+
+- **A base64 `Mcp-Name` decodes as UTF-8** — base64 carries bytes and knows
+  nothing of encodings, so a decoded name was compared as ASCII-8BIT and never
+  matched the UTF-8 value in the body. The spec defines the payload as the
+  UTF-8 representation, so the decoded string is tagged as such.
+
+- **A stateless request naming an unspoken revision is refused** — version
+  mismatches are answered with `UnsupportedProtocolVersionError` (-32022) and
+  the list of versions the server does speak, replacing the generic
+  "not initialized" the legacy gate would have produced.
+
 ## [0.4.5] - 2026-08-12
 
 ### Added

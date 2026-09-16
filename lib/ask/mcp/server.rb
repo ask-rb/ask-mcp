@@ -54,9 +54,27 @@ module Ask
                   resources: resources, prompts: prompts,
                   resource_templates: resource_templates, debug: debug).start
       end
+
+      # Build a Rack application serving MCP over the stateless Streamable
+      # HTTP transport (2026-07-28). Mount it wherever Rack runs:
+      #
+      #   mount Ask::MCP::Server.rack_app(name: "anychat", tools: [...]) => "/mcp"
+      #
+      # Accepts the same tool/resource/prompt options as .start_stdio, plus:
+      #
+      # @param authenticate [#call, nil] receives the Rack env per request and
+      #   returns the caller's identity; a nil return answers 401
+      # @param context [#call, nil] derives the value passed to a callable
+      #   `tools` when no `authenticate` is given (defaults to the Rack env)
+      # @return [Server::HTTP] a Rack application
+      def self.rack_app(**options)
+        HTTP.new(**options)
+      end
     end
   end
 end
 
 # Load Server subclasses after the Server class is defined
+require_relative "server/core"
 require_relative "server/stdio"
+require_relative "server/http"
