@@ -1,3 +1,12 @@
+## 0.6.0
+
+- `Auth::Connect`: the browser OAuth flow for MCP servers, as a reusable
+  class. Discovers the authorization server behind a protected resource
+  (RFC 9728) and its endpoints (RFC 8414 / OIDC), registers the client on
+  the spot when the server allows it, builds the authorization URL with
+  PKCE, and redeems the redirected code — or a refresh token — for tokens.
+  HTTP rides a small injected seam, so hosts can bring their own client.
+
 ## [0.5.0] - 2026-09-17
 
 ### Added

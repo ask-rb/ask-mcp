@@ -37,6 +37,7 @@ module Ask
 
     module Auth
       autoload :OAuth, "ask/mcp/auth/oauth"
+      autoload :Connect, "ask/mcp/auth/connect"
       autoload :Token, "ask/mcp/auth/token"
       autoload :ClientIdMetadataDocument, "ask/mcp/auth/client_id_metadata_document"
     end
