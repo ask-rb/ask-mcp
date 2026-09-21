@@ -161,6 +161,8 @@ annotations are excluded from `tools/list` on HTTP transports.
 | `server.notify_*_list_changed` | Emit change notifications to clients |
 | `Ask::MCP::Adapters::AskTool.wrap(tools_hash)` | Adapter from MCP tools to `Ask::Tool` instances for ask-agent |
 | `Ask::MCP::Adapters::ToolServer` | Adapter from duck-typed tools to MCP server tools |
+| `Ask::MCP::RuntimeExecutor.new(client)` | Bridge MCP client into `Ask::Runtime::ToolExecutor` |
+| `Ask::MCP::ToolDiscovery` | Discover MCP tools and wrap them as `AskTool` adapters |
 | `Ask::MCP::Auth::Token.new(token)` | Token-based auth (`apply(headers)`) |
 | `Ask::MCP::Auth::OAuth.new(client_id:, ...)` | OAuth for MCP; `discover!` (OIDC), `authenticate!`, `validate_iss!`, `apply(headers)` |
 | `Ask::MCP::Auth::ClientIdMetadataDocument` | Build/validate Client ID Metadata Documents (2026-07-28 client registration) |
@@ -187,6 +189,32 @@ wrapped.each { |name, adapter| agent.register_tool(adapter.to_ask_tool) }
 ```
 
 Expose `Ask::Tool` subclasses as an MCP server with `Ask::MCP::Server.start_stdio(name:, tools:, capabilities: { tools: {} })`; the `ToolServer` adapter handles them.
+
+### With ask-runtime
+
+Bridge an MCP client into `Ask::Runtime` tool-call pipelines:
+
+```ruby
+require "ask/mcp"
+require "ask/runtime"
+
+client = Ask::MCP.from_stdio("npx", ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"])
+client.start
+
+executor = Ask::MCP::RuntimeExecutor.new(client)
+
+# Build a tool call and context
+call = Ask::Runtime::ToolCall.new(tool_name: "read_file", input: { path: "/tmp/test.txt" })
+ctx = Ask::Runtime::ExecutionContext.new(session_id: "s1", turn: 1)
+
+result = executor.execute(call, context: ctx)
+result.success?  # => true
+result.output    # => file contents
+
+# Discover and wrap tools for integration
+include Ask::MCP::ToolDiscovery
+tools = mcp_tools(client)   # => Hash{String => Adapters::AskTool}
+```
 
 ## Full documentation
 

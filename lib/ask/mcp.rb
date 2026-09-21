@@ -24,6 +24,8 @@ module Ask
     autoload :Validator, "ask/mcp/validator"
     autoload :XMcpHeader, "ask/mcp/x_mcp_header"
     autoload :TraceContext, "ask/mcp/trace_context"
+    autoload :RuntimeExecutor, "ask/mcp/runtime_executor"
+    autoload :ToolDiscovery, "ask/mcp/tool_discovery"
 
     module Native
       autoload :Messages, "ask/mcp/native/messages"

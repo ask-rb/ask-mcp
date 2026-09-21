@@ -31,4 +31,6 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "minitest", "~> 5.25"
   spec.add_development_dependency "mocha", "~> 3.1"
   spec.add_development_dependency "rake", "~> 13.0"
+  spec.add_development_dependency "ask-core", ">= 0.12.0"
+  spec.add_development_dependency "ask-runtime", ">= 0.1.0"
 end

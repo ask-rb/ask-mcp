@@ -7,6 +7,18 @@
   PKCE, and redeems the redirected code — or a refresh token — for tokens.
   HTTP rides a small injected seam, so hosts can bring their own client.
 
+- **`Ask::MCP::RuntimeExecutor`** — bridges MCP clients into the
+  `Ask::Runtime::ToolExecutor` interface. Wraps an `Ask::MCP::Client`,
+  implements `#execute(tool_call, context:)`, normalizes MCP content/result
+  shapes (array, hash, string, nil) into `ToolResult.success` or `failure`,
+  honors context cancellation before calling the client, and emits
+  `ToolStarted` / `ToolCompleted` / `ToolFailed` / `ToolCancelled` lifecycle
+  events via `context.event_sink` with terminal snapshots.
+
+- **`Ask::MCP::ToolDiscovery`** module — helper for discovering MCP tools
+  from a client and wrapping them as `Adapters::AskTool` or
+  `Ask::Tools::Tool` instances.
+
 ## [0.5.0] - 2026-09-17
 
 ### Added
