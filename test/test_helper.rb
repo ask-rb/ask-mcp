@@ -11,7 +11,9 @@ end
 
 require "ostruct"
 $LOAD_PATH.unshift File.expand_path("../../lib", __dir__)
+$LOAD_PATH.unshift File.expand_path("../../ask-runtime/lib", __dir__)
 require "ask/mcp"
+require "ask/runtime/testing"
 require "minitest/autorun"
 require "mocha/minitest" if Gem.loaded_specs.key?("mocha")
 
