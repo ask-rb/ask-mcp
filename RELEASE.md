@@ -1,5 +1,8 @@
 # Release Process — ask-ask-mcp
 
+> Versioning is governed by [VERSIONING.md](VERSIONING.md), the canonical
+> policy — where this file and VERSIONING.md disagree, VERSIONING.md wins.
+
 ## Prerequisites
 
 - All tests pass: `bundle exec rake test`
